@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>UNISINÚ METRO — Transporte universitario</title>
+<meta name="theme-color" content="#1A1A1A">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script>window.tailwind && (tailwind.config = { darkMode: 'class' });</script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script defer src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
+<style>
+:root{
+  --bg:#F9F9F9; --card:#FFFFFF; --border:#E5E7EB; --text:#1F2937; --muted:#6B7280;
+  --primary:#D8000C; --primary-hover:#B3000A; --gold:#D4AF37; --navy:#1A1A1A;
+}
+.dark{
+  --bg:#121212; --card:#1E1E1E; --border:#333333; --text:#F3F4F6; --muted:#9CA3AF;
+  --primary:#D8000C; --primary-hover:#E6000D; --gold:#D4AF37; --navy:#0A0A0A;
+}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,sans-serif;transition:background-color .3s,color .3s}
+h1,h2,h3,.brand{font-family:Poppins,Inter,sans-serif}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;box-shadow:0 4px 18px rgba(0,0,0,.05);transition:background-color .3s}
+.muted{color:var(--muted)}
+.hdr{background:var(--navy);color:#fff;border-bottom:3px solid var(--primary)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:44px;padding:0 1rem;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-weight:500;cursor:pointer;transition:all .2s}
+.btn:hover{background:var(--bg);transform:translateY(-1px)}
+.btn-primary{background:var(--primary);color:#fff;border-color:var(--primary)}
+.btn-primary:hover{background:var(--primary-hover)}
+.btn-danger{background:#EF4444;color:#fff;border-color:#EF4444}
+.btn-sm{min-height:32px;padding:0 .75rem;font-size:0.875rem}
+:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
+.nav-tab{padding:0.5rem 1rem;border-radius:8px;font-weight:600;cursor:pointer;color:var(--muted);transition:all .2s;border:none;background:transparent}
+.nav-tab.active{background:var(--primary);color:#fff}
+.nav-tab:hover:not(.active){background:rgba(216,0,12,.1);color:var(--primary)}
+#loader{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1rem;background:var(--navy);color:#fff;transition:opacity .3s}
+#loader.out{opacity:0;pointer-events:none}
+.spin{width:44px;height:44px;border-radius:50%;border:4px solid rgba(216,0,12,.2);border-top-color:var(--primary);animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.dot{width:10px;height:10px;border-radius:50%;background:#22C55E;animation:pulse 2s infinite}
+.dot.off{background:#94A3B8;animation:none}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(34,197,94,.6)}70%,100%{box-shadow:0 0 0 8px rgba(34,197,94,0)}}
+.stop{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--navy);color:var(--gold);border:2px solid var(--primary);font:600 12px Inter,sans-serif;box-shadow:0 2px 6px rgba(0,0,0,.4)}
+.leaflet-container img{max-width:none!important}
+.dark .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)}
+.leaflet-popup-content{margin:12px 14px;font-family:Inter,sans-serif;color:#1F2937}
+.leaflet-popup-content-wrapper{border-radius:12px}
+.bus{position:relative;display:grid;place-items:center;min-width:34px;height:24px;padding:0 6px;border-radius:8px;color:#fff;font:700 11px Inter,sans-serif;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);transition:opacity .3s, background .3s}
+.bus::after{content:'';position:absolute;top:-6px;right:-6px;width:11px;height:11px;border-radius:50%;background:var(--s,#94A3B8);border:2px solid #fff}
+.bus.ocupacion-baja{background:#22C55E}
+.bus.ocupacion-media{background:#F5A623}
+.bus.ocupacion-alta{background:#EF4444}
+.leaflet-marker-icon{transition:opacity .3s}
+.field{width:100%;min-height:44px;padding:0 .75rem;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--text);transition:border-color .2s}
+.field:focus{border-color:var(--primary);outline:none}
+.badge-sim{font-size:10px;background:rgba(212,175,55,.2);color:var(--gold);padding:2px 6px;border-radius:4px;font-weight:700;border:1px solid var(--gold)}
+#toast{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:10px}
+.toast-msg{background:var(--navy);color:#fff;padding:12px 20px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);font-size:14px;border-left:4px solid var(--primary);animation:slideIn .3s ease-out forwards}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+.search-results{position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:1000;max-height:200px;overflow-y:auto;margin-top:4px}
+.search-results li{padding:10px;cursor:pointer;border-bottom:1px solid var(--border);font-size:14px}
+.search-results li:hover{background:var(--bg)}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div id="loader" role="status" aria-live="polite">
+  <div class="spin" aria-hidden="true"></div>
+  <p class="brand text-lg font-semibold tracking-widest text-white">UNISINÚ METRO</p>
+  <p class="text-sm opacity-70 text-gray-300">Cargando sistema...</p>
+</div>
+
+<div id="toast"></div>
+
+<header class="hdr sticky top-0 z-[1000] shadow-lg">
+  <div class="flex items-center gap-3 px-3 sm:px-5 h-16 max-w-7xl mx-auto w-full">
+    <svg width="34" height="34" viewBox="0 0 32 32" role="img" class="shrink-0 bg-white rounded-full p-1">
+      <path d="M7 23V10l9 9 9-9v13" fill="none" stroke="#D8000C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div class="min-w-0 leading-tight">
+      <h1 class="brand text-base sm:text-lg font-bold truncate">UNISINÚ METRO</h1>
+      <p class="text-xs opacity-80 hidden sm:block">Universidad del Sinú — Montería</p>
+    </div>
+    <div class="ml-auto flex items-center gap-2 sm:gap-3">
+      <button id="btnInstall" class="btn hidden bg-[var(--primary)] text-white border-none text-xs" type="button"><i data-lucide="download"></i> Instalar</button>
+      <div class="flex items-center gap-2 text-sm mr-2" role="status">
+        <span id="svcDot" class="dot" aria-hidden="true"></span>
+        <span id="svcTxt" class="sr-only md:not-sr-only text-xs"></span>
+      </div>
+      <time id="clock" class="text-sm font-semibold tabular-nums"></time>
+    </div>
+  </div>
+</header>
+
+<div id="notifBanner" class="hidden bg-[var(--primary)] text-white text-sm font-semibold px-4 py-2 text-center transition-all" role="alert">
+  <i data-lucide="alert-circle" class="inline w-4 h-4 mr-1"></i> <span id="notifText"></span>
+</div>
+
+<div class="bg-[var(--card)] border-b border-[var(--border)] sticky top-16 z-[900] shadow-sm">
+  <div class="flex px-4 max-w-7xl mx-auto w-full gap-2 overflow-x-auto py-2">
+    <button class="nav-tab active" data-view="home" onclick="UIController.switchView('home')"><i data-lucide="home" class="inline w-4 h-4 mr-1"></i> Inicio</button>
+    <button class="nav-tab" data-view="map" onclick="UIController.switchView('map')"><i data-lucide="map" class="inline w-4 h-4 mr-1"></i> Seguimiento</button>
+    <button class="nav-tab" data-view="admin" onclick="UIController.switchView('admin')"><i data-lucide="shield" class="inline w-4 h-4 mr-1"></i> Administración</button>
+  </div>
+</div>
+
+<!-- CONTENEDOR PRINCIPAL: Forzamos altura fija en móvil y flex en escritorio -->
+<main class="max-w-7xl mx-auto w-full h-[calc(100vh-8rem)] flex flex-col overflow-hidden">
+  
+  <!-- VISTA INICIO -->
+  <section id="view-home" class="p-4 sm:p-6 overflow-y-auto flex-1 space-y-6">
+    <div class="card p-6 sm:p-8 border-l-4 border-l-[var(--primary)]">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="brand text-2xl font-bold">Bienvenido a UNISINÚ METRO</h2>
+          <p class="muted mt-1">Sistema inteligente de seguimiento de transporte.</p>
+        </div>
+        <div class="badge-sim">DEMOSTRACIÓN</div>
+      </div>
+    </div>
+    
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="card p-6 flex flex-col items-center justify-center text-center">
+        <i data-lucide="bus" class="w-8 h-8 text-[var(--primary)] mb-2"></i>
+        <p class="muted text-sm">Buses en ruta</p>
+        <p id="stBuses" class="brand text-4xl font-bold">0</p>
+      </div>
+      <div class="card p-6 flex flex-col items-center justify-center text-center">
+        <i data-lucide="map-pin" class="w-8 h-8 text-[var(--primary)] mb-2"></i>
+        <p class="muted text-sm">Paradas activas</p>
+        <p id="stParadas" class="brand text-4xl font-bold">3</p>
+      </div>
+      <div class="card p-6 flex flex-col items-center justify-center text-center">
+        <i data-lucide="clock" class="w-8 h-8 text-[var(--primary)] mb-2"></i>
+        <p class="muted text-sm">Horario</p>
+        <p id="stHorario" class="font-bold text-lg mt-1">06:00 - 20:00</p>
+      </div>
+    </div>
+
+    <div class="card p-6">
+      <h3 class="font-bold mb-4 flex items-center gap-2"><i data-lucide="bell" class="w-5 h-5 text-[var(--gold)]"></i> Historial de Novedades</h3>
+      <div id="homeAlerts" class="space-y-3"><p class="muted text-sm italic">No hay novedades.</p></div>
+    </div>
+  </section>
+
+  <!-- VISTA MAPA / SEGUIMIENTO -->
+  <section id="view-map" class="hidden flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+    
+    <!-- Contenedor del Mapa: Forzado a 45vh en móvil y shrink-0 para que no se aplaste -->
+    <div class="w-full h-[45vh] lg:h-full lg:flex-1 relative z-0 shrink-0">
+      <div id="map" class="absolute inset-0 z-0 bg-gray-200 dark:bg-gray-800"></div>
+      
+      <div class="absolute right-4 bottom-6 z-[500] flex flex-col gap-2">
+        <button id="btnLocate" class="btn bg-white text-[var(--text)] shadow-lg" type="button" title="Mi ubicación">
+          <i data-lucide="navigation" class="text-blue-500"></i>
+        </button>
+        <button id="btnCenter" class="btn btn-primary shadow-lg" type="button">
+          <i data-lucide="locate-fixed"></i> Centrar
+        </button>
+      </div>
+    </div>
+
+    <!-- Panel Lateral: Ocupa el resto del espacio en móvil y permite scroll -->
+    <aside class="w-full flex-1 lg:flex-none lg:w-[400px] bg-[var(--bg)] border-l border-[var(--border)] p-4 overflow-y-auto z-10 shadow-[-4px_0_15px_rgba(0,0,0,0.05)]">
+      
+      <div class="card p-4 relative z-20 mb-4">
+        <h2 class="font-bold text-sm mb-2 muted uppercase tracking-wider">Buscar Parada</h2>
+        <div class="relative">
+          <input id="searchStop" type="text" class="field pl-10" placeholder="Ej: Entrada principal">
+          <i data-lucide="search" class="absolute left-3 top-3 w-5 h-5 text-gray-400"></i>
+          <ul id="searchResults" class="search-results hidden"></ul>
+        </div>
+      </div>
+
+      <div class="card p-4 space-y-3 mb-4">
+        <div class="flex items-start justify-between gap-2">
+          <div><h2 class="font-bold text-lg">Próximas llegadas</h2></div>
+          <button id="btnNotif" class="btn btn-sm" title="Activar notificaciones"><i data-lucide="bell"></i></button>
+        </div>
+        <select id="fBus" class="field" aria-label="Filtrar por bus"></select>
+        <select id="fParada" class="field" aria-label="Filtrar por parada"></select>
+        <ul id="arrivals" class="space-y-2 mt-2"></ul>
+      </div>
+
+      <div class="card p-4 space-y-3">
+        <h2 class="font-bold text-lg">Simulación</h2>
+        <label class="flex items-center justify-between gap-3 text-sm font-medium">Velocidad
+          <select id="simFactor" class="field" style="width:auto"><option value="1">×1</option><option value="5">×5</option><option value="10">×10</option></select>
+        </label>
+        <label class="flex items-center gap-3 text-sm font-medium min-h-[44px] cursor-pointer">
+          <input id="simForce" type="checkbox" class="w-5 h-5 accent-[var(--primary)]"> Modo Prueba (Fuera de horario)
+        </label>
+        <button id="btnSimReset" class="btn btn-primary w-full mt-2" type="button"><i data-lucide="refresh-cw"></i> Reiniciar</button>
+      </div>
+    </aside>
+  </section>
+
+  <!-- VISTA ADMIN -->
+  <section id="view-admin" class="hidden p-4 sm:p-6 flex-1 overflow-y-auto">
+    <div id="adminLogin" class="card max-w-sm mx-auto mt-10 p-6 text-center">
+      <div class="w-16 h-16 bg-[var(--primary)] text-white rounded-full flex items-center justify-center mx-auto mb-4">
+        <i data-lucide="lock" class="w-8 h-8"></i>
+      </div>
+      <h2 class="brand text-xl font-bold mb-2">Acceso Restringido</h2>
+      <input id="adminPin" type="password" class="field text-center text-xl tracking-widest mb-3" placeholder="****" maxlength="4">
+      <button id="btnLogin" class="btn btn-primary w-full">Acceder</button>
+      <p id="pinErr" class="text-[var(--primary)] text-sm mt-3 hidden font-semibold">PIN incorrecto (usa 1234).</p>
+    </div>
+
+    <div id="adminPanel" class="hidden max-w-5xl mx-auto">
+      <div class="flex flex-col sm:flex-row items-center justify-between mb-6 gap-4">
+        <h2 class="brand text-2xl font-bold">Panel de Control</h2>
+        <button class="btn bg-[var(--gold)] text-[var(--navy)] border-[var(--gold)] font-bold" onclick="DataManager.reset()">Restaurar Fábrica</button>
+      </div>
+      
+      <div class="flex border-b border-[var(--border)] mb-4 overflow-x-auto">
+        <button class="nav-tab active" onclick="AdminController.switchTab('alertas', event)">Alertas</button>
+        <button class="nav-tab" onclick="AdminController.switchTab('buses', event)">Buses</button>
+        <button class="nav-tab" onclick="AdminController.switchTab('rutas', event)">Ruta</button>
+        <button class="nav-tab" onclick="AdminController.switchTab('paradas', event)">Paradas</button>
+        <button class="nav-tab" onclick="AdminController.switchTab('reportes', event)">Reportes</button>
+        <button class="nav-tab" onclick="AdminController.switchTab('sistema', event)">Sistema</button>
+      </div>
+
+      <div id="tab-alertas" class="card p-6 space-y-4">
+        <h3 class="font-bold text-lg">Publicar Nueva Alerta</h3>
+        <div class="flex flex-col sm:flex-row gap-2">
+          <input id="alertTxt" class="field" placeholder="Ej: Retraso por tráfico">
+          <button id="btnAddAlert" class="btn btn-primary">Enviar</button>
+        </div>
+      </div>
+
+      <div id="tab-buses" class="hidden card p-6 space-y-4">
+        <div class="flex justify-between items-center">
+          <h3 class="font-bold text-lg">Gestión de Buses</h3>
+          <button id="btnAddBus" class="btn btn-sm btn-primary">+ Nuevo</button>
+        </div>
+        <div id="adminBusList" class="space-y-2 max-h-96 overflow-y-auto"></div>
+      </div>
+
+      <div id="tab-rutas" class="hidden card p-6 space-y-4">
+        <h3 class="font-bold text-lg">Configuración de Ruta</h3>
+        <div id="adminRutaForm" class="space-y-3 max-w-md"></div>
+      </div>
+
+      <div id="tab-paradas" class="hidden card p-6 space-y-4">
+        <div class="flex justify-between items-center">
+          <h3 class="font-bold text-lg">Gestión de Paradas</h3>
+          <button id="btnAddParada" class="btn btn-sm btn-primary">+ Nueva</button>
+        </div>
+        <div id="adminParadaList" class="space-y-2 max-h-96 overflow-y-auto"></div>
+      </div>
+
+      <div id="tab-reportes" class="hidden card p-6 space-y-4">
+        <h3 class="font-bold text-lg">Reportes de Estudiantes</h3>
+        <div id="adminReportList" class="space-y-2 max-h-96 overflow-y-auto"></div>
+      </div>
+
+      <div id="tab-sistema" class="hidden card p-6 space-y-4">
+        <h3 class="font-bold text-lg">Copia de Seguridad</h3>
+        <p class="text-sm muted mb-4">Exporta o importa todos los datos (rutas, paradas, buses) en formato JSON.</p>
+        <div class="flex gap-4">
+          <button id="btnExport" class="btn btn-primary flex-1"><i data-lucide="download"></i> Exportar JSON</button>
+          <label class="btn flex-1 cursor-pointer">
+            <i data-lucide="upload"></i> Importar JSON
+            <input id="fileImport" type="file" accept=".json" class="hidden">
+          </label>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+'use strict';
+
+const CAMPUS = { nombre: 'Universidad del Sinú', coords: [8.76929, -75.88648] };
+const DATA = {
+  rutas: [{
+    id: 'unisinu-metro', nombre: 'Ruta Metro Unisinú', color: '#D8000C', activa: true,
+    recorrido: [[8.76929,-75.88648],[8.7657,-75.8853],[8.7621,-75.8841],[8.7585,-75.8830]],
+    paradas: ['P1', 'P3', 'P4']
+  }],
+  paradas: [
+    { id: 'P1', nombre: 'Entrada principal del campus', lat: 8.76929, lng: -75.88648, imagen: '' },
+    { id: 'P3', nombre: 'Parada intermedia (Puente)', lat: 8.7621, lng: -75.8841, imagen: '' },
+    { id: 'P4', nombre: 'Zona centro', lat: 8.7585, lng: -75.8830, imagen: '' }
+  ],
+  buses: [
+    { id: 'B1', nombre: 'Bus 01', placa: 'DEMO-001', capacidad: 40, rutaId: 'unisinu-metro', velocidadKmh: 25, progresoRuta: 0.05, direccion: 'ida', estado: 'pendiente', ocupacion: 'baja' },
+    { id: 'B2', nombre: 'Bus 02', placa: 'DEMO-002', capacidad: 40, rutaId: 'unisinu-metro', velocidadKmh: 30, progresoRuta: 0.50, direccion: 'ida', estado: 'pendiente', ocupacion: 'media' },
+    { id: 'B3', nombre: 'Bus 03', placa: 'DEMO-003', capacidad: 30, rutaId: 'unisinu-metro', velocidadKmh: 22, progresoRuta: 0.80, direccion: 'regreso', estado: 'pendiente', ocupacion: 'alta' }
+  ],
+  horario: { inicio: '06:00', fin: '20:00', zonaHoraria: 'America/Bogota' },
+  anuncios: [], reportes: []
+};
+const MAP_CONFIG = { cartoKey: 'cb1_4zyb_1_d0bcdaecf9ca43da50cb73d0' };
+
+const $ = id => document.getElementById(id);
+const icons = () => window.lucide && window.lucide.createIcons();
+const h = (tag, props = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'class') e.className = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  }
+  kids.flat().forEach(c => e.append(c instanceof Node ? c : document.createTextNode(String(c))));
+  return e;
+};
+const showToast = (msg, isError = false) => {
+  const t = h('div', { class: 'toast-msg', style: isError ? 'border-left-color:#EF4444' : '' }, msg);
+  $('toast').appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3000);
+};
+const ESTADOS = {
+  pendiente:  { t: 'Pendiente',  c: '#94A3B8', i: 'clock' },
+  recorrido:  { t: 'En recorrido', c: '#22C55E', i: 'bus' },
+  proximo:    { t: 'Próximo', c: '#F5A623', i: 'map-pin' },
+  parada:     { t: 'En parada', c: '#3B82F6', i: 'octagon' },
+  regreso:    { t: 'En regreso', c: '#8B5CF6', i: 'undo-2' },
+  fuera:      { t: 'Fuera de servicio', c: '#EF4444', i: 'power-off' }
+};
+
+const manifest = {
+  name: "Unisinu Metro", short_name: "Metro", start_url: ".", display: "standalone",
+  background_color: "#1A1A1A", theme_color: "#D8000C",
+  icons: [{ src: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiB2aWV3Qm94PSIwIDAgMzIgMzIiPjxyZWN0IHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgcng9IjkiIGZpbGw9IiNEOODAwMEMiLz48cGF0aCBkPSJNNyAyM1YxMGw5IDkgOS05djEzIiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMyIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PC9zdmc+", sizes: "192x192", type: "image/svg+xml" }]
+};
+const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+const manifestLink = document.createElement('link');
+manifestLink.rel = 'manifest'; manifestLink.href = URL.createObjectURL(manifestBlob);
+document.head.appendChild(manifestLink);
+
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault(); deferredPrompt = e; $('btnInstall').classList.remove('hidden');
+});
+
+const StorageManager = {
+  P: 'unisinu:',
+  get(k, fb = null) { try { const v = localStorage.getItem(this.P + k); return v === null ? fb : JSON.parse(v); } catch (e) { return fb; } },
+  set(k, v) { try { localStorage.setItem(this.P + k, JSON.stringify(v)); return true; } catch (e) { return false; } },
+  clearAll() { try { Object.keys(localStorage).filter(k => k.startsWith(this.P)).forEach(k => localStorage.removeItem(k)); } catch (e) {} }
+};
+
+const DataManager = {
+  data: null,
+  load() {
+    const stored = StorageManager.get('data');
+    this.data = stored || JSON.parse(JSON.stringify(DATA));
+    if(!this.data.reportes) this.data.reportes = [];
+    return true;
+  },
+  save() { StorageManager.set('data', this.data); RouteManager.cache = {}; },
+  reset() { if(confirm('¿Borrar todos los cambios y restaurar los datos de fábrica?')) { StorageManager.clearAll(); location.reload(); } }
+};
+
+const RouteManager = {
+  cache: {},
+  km(a, b) { const t = Math.PI / 180; return 12742 * Math.asin(Math.sqrt(Math.sin((b[0]-a[0])*t/2)**2 + Math.cos(a[0]*t)*Math.cos(b[0]*t)*Math.sin((b[1]-a[1])*t/2)**2)); },
+  cumul(rec) { const c = [0]; for (let i = 1; i < rec.length; i++) c.push(c[i - 1] + this.km(rec[i - 1], rec[i])); return c; },
+  async ajustarACalles() {
+    const cache = StorageManager.get('calles', {}) || {};
+    for (const r of DataManager.data.rutas) {
+      const ps = r.paradas.map(id => DataManager.data.paradas.find(p => p.id === id)).filter(Boolean);
+      if(ps.length < 2) continue;
+      const sig = JSON.stringify([ps.map(p => [p.lat, p.lng]), r.recorrido]);
+      try {
+        let c = cache[r.id];
+        if (!c || c.sig !== sig) {
+          const fr = this.build(r).sp.map(x => x.p), a = ps[0], z = ps[ps.length - 1];
+          const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 8000);
+          const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${z.lng},${z.lat}?overview=full&geometries=geojson`, { signal: ctl.signal });
+          clearTimeout(t);
+          const j = await res.json();
+          if (j.code !== 'Ok' || !j.routes || !j.routes[0]) throw new Error('OSRM falló');
+          const rec = j.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng]), tmp = { recorrido: rec, cum: this.cumul(rec) };
+          tmp.total = tmp.cum[tmp.cum.length - 1];
+          c = { sig, recorrido: rec, paradas: Object.fromEntries(ps.map((p, i) => [p.id, i === 0 ? rec[0] : i === ps.length - 1 ? rec[rec.length - 1] : this.pointAt(tmp, fr[i])])) };
+          cache[r.id] = c;
+        }
+        r.recorrido = c.recorrido; ps.forEach(p => { [p.lat, p.lng] = c.paradas[p.id]; });
+      } catch (e) { console.warn('OSRM falló', e); }
+    }
+    StorageManager.set('calles', cache); this.cache = {};
+  },
+  byId(id) { const r = DataManager.data.rutas.find(x => x.id === id); return r ? (this.cache[id] || (this.cache[id] = this.build(r))) : null; },
+  build(r) {
+    const cum = this.cumul(r.recorrido), total = cum[cum.length - 1];
+    const sp = r.paradas.map(id => { const p = DataManager.data.paradas.find(x => x.id === id); return { id, p: this.project(r.recorrido, cum, [p.lat, p.lng]) / total }; });
+    return { ...r, cum, total, sp };
+  },
+  project(pts, cum, q) {
+    const kx = Math.cos(q[0] * Math.PI / 180) * 111.32, ky = 110.57; let best = Infinity, along = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const ax = (pts[i][1] - q[1]) * kx, ay = (pts[i][0] - q[0]) * ky, dx = (pts[i+1][1] - pts[i][1]) * kx, dy = (pts[i+1][0] - pts[i][0]) * ky;
+      const t = (dx*dx+dy*dy) ? Math.max(0, Math.min(1, -(ax*dx + ay*dy) / (dx*dx+dy*dy))) : 0, d = Math.hypot(ax + t*dx, ay + t*dy);
+      if (d < best) { best = d; along = cum[i] + t * (cum[i+1] - cum[i]); }
+    }
+    return along;
+  },
+  pointAt(r, p) {
+    const target = Math.max(0, Math.min(1, p)) * r.total; let i = 1;
+    while (i < r.cum.length - 1 && r.cum[i] < target) i++;
+    const a = r.recorrido[i-1], b = r.recorrido[i], seg = r.cum[i] - r.cum[i-1], t = seg ? (target - r.cum[i-1]) / seg : 0;
+    return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+  }
+};
+
+const ETACalculator = {
+  fmt(e, m) { return { 'sin-servicio':'Sin servicio', 'no-disponible':'N/A', pendiente:'Pendiente', 'en-parada':'En parada' }[e] || (!Number.isFinite(m) ? 'N/A' : m < 1 ? 'Llegando' : `${Math.round(m)} min`); },
+  calc(bus, parada) {
+    const out = (e, m=NaN) => ({ minutos: m, estado: e, etiqueta: this.fmt(e, m) });
+    const r = RouteManager.byId(bus.rutaId), s = r && r.sp.find(x => x.id === parada.id);
+    if (!r || !s || !Number.isFinite(bus.progresoRuta)) return out('no-disponible');
+    if (bus.estado === 'fuera') return out('sin-servicio');
+    if (bus.estado === 'pendiente') return out('pendiente');
+    const T = r.total, ida = bus.direccion === 'ida', f = x => ida ? x : 1 - x;
+    const pp = f(bus.progresoRuta), ss = f(s.p);
+    let d = ss >= pp ? (ss - pp) * T : ((1 - pp) + (1 - ss)) * T;
+    if (bus.estado === 'parada' && d <= 0.025) return out('en-parada', 0);
+    return out('ok', d / bus.velocidadKmh * 60 / BusSimulator.factor);
+  }
+};
+
+const BusSimulator = {
+  buses: [], tickId: null, rafId: null, factor: 1, force: false, DWELL: 10, notified: {},
+  init() {
+    this.stop();
+    const c = StorageManager.get('simulacion', {}) || {};
+    this.factor = [1, 5, 10].includes(c.factor) ? c.factor : 1; this.force = !!c.force;
+    this.buses = DataManager.data.buses.map(b => ({ ...b, dwell: 0, lat: NaN, lng: NaN, from: null, to: null, t0: 0 }));
+    this.buses.forEach(b => { const r = RouteManager.byId(b.rutaId); if (r) this.mover(b, r); });
+    this.start();
+  },
+  start() { this.stop(); this.tickId = setInterval(() => this.tick(), 1000); const frame = () => { this.render(); this.rafId = requestAnimationFrame(frame); }; this.rafId = requestAnimationFrame(frame); },
+  stop() { clearInterval(this.tickId); if (this.rafId) cancelAnimationFrame(this.rafId); },
+  config(o) { Object.assign(this, o); StorageManager.set('simulacion', { factor: this.factor, force: this.force }); },
+  reiniciar() { RouteManager.cache = {}; this.notified = {}; this.init(); if(MapController.map) MapController.resetBuses(); UIController.sig = ''; UIController.refreshUI(); },
+  mover(b, r) { const p = RouteManager.pointAt(r, b.progresoRuta); b.from = b.to || p; b.to = p; b.t0 = performance.now(); b.lat = p[0]; b.lng = p[1]; },
+  tick() {
+    const fase = this.force ? 'dentro' : UIController.fase(DataManager.data.horario);
+    this.buses.forEach(b => {
+      const r = RouteManager.byId(b.rutaId);
+      if (!r || fase !== 'dentro') { b.estado = fase === 'antes' ? 'pendiente' : 'fuera'; return; }
+      if (b.estado === 'pendiente' || b.estado === 'fuera') b.estado = 'recorrido';
+      if (b.dwell > 0) b.dwell--;
+      else {
+        const dp = (b.velocidadKmh * this.factor / 3600) / r.total;
+        b.progresoRuta += b.direccion === 'ida' ? dp : -dp;
+        if (b.progresoRuta >= 1) { b.progresoRuta = 1; b.direccion = 'regreso'; }
+        else if (b.progresoRuta <= 0) { b.progresoRuta = 0; b.direccion = 'ida'; }
+      }
+      this.mover(b, r);
+      this.checkNotifications(b);
+    });
+    UIController.markTick(); 
+    if(MapController.map) MapController.update(); 
+    UIController.refreshUI();
+  },
+  checkNotifications(b) {
+    const fav = StorageManager.get('paradaFavorita');
+    if (!fav || !("Notification" in window) || Notification.permission !== "granted") return;
+    const stop = DataManager.data.paradas.find(p => p.id === fav);
+    if (!stop) return;
+    const e = ETACalculator.calc(b, stop);
+    if (e.estado === 'ok' && e.minutos < 2) {
+      if (!this.notified[b.id]) {
+        this.notified[b.id] = true;
+        new Notification("UNISINÚ METRO", { body: `¡El ${b.nombre} está llegando a ${stop.nombre}!` });
+        setTimeout(() => { this.notified[b.id] = false; }, 300000);
+      }
+    }
+  },
+  render() {
+    const now = performance.now();
+    this.buses.forEach(b => {
+      if (!b.to || !MapController.map) return;
+      const u = Math.min(1, Math.max(0, (now - b.t0) / 1000));
+      MapController.moveBus(b, b.from[0] + (b.to[0] - b.from[0]) * u, b.from[1] + (b.to[1] - b.from[1]) * u);
+    });
+  }
+};
+
+const MapController = {
+  map: null, tiles: null, stopMk: {}, busMk: {}, busNodes: {}, lines: {}, highlightedStop: null, followBusId: null,
+  init() {
+    this.destroy();
+    this.map = L.map('map', { zoomControl: false }).setView(CAMPUS.coords, 14);
+    L.control.zoom({ position: 'bottomleft' }).addTo(this.map);
+    this.setTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+
+    this.renderMapElements();
+    this.map.on('click', () => this.clearStopHighlight());
+    this.map.on('dragstart', () => { this.followBusId = null; });
+    new ResizeObserver(() => { if(this.map) this.map.invalidateSize(); }).observe($('map'));
+    
+    if (new URLSearchParams(location.search).has('calibrar')) {
+      this.map.on('click', e => {
+        const t = `[${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}]`;
+        L.popup().setLatLng(e.latlng).setContent(`<strong>Coord:</strong> ${t}`).openOn(this.map);
+        if (navigator.clipboard) navigator.clipboard.writeText(t).then(()=>showToast('Copiado!'));
+      });
+    }
+  },
+  renderMapElements() {
+    if(this.layerGroup) this.layerGroup.clearLayers();
+    this.layerGroup = L.layerGroup().addTo(this.map);
+    DataManager.data.rutas.forEach(r => {
+      this.lines[r.id] = L.polyline(r.recorrido, { color: r.color, weight: 5, opacity: .9 }).addTo(this.layerGroup);
+      r.paradas.forEach((id, i) => {
+        const p = DataManager.data.paradas.find(x => x.id === id); if (!p) return;
+        this.stopMk[id] = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', html: `<div class="stop" style="border-color:${r.color}">${i + 1}</div>`, iconSize: [28, 28], iconAnchor: [14, 14] }) })
+          .addTo(this.layerGroup).bindPopup(() => this.stopPopup(p, i + 1, r));
+        this.stopMk[id].on('click', () => this.highlightForStop(id));
+      });
+    });
+    this.map.fitBounds(L.latLngBounds(DataManager.data.rutas[0].recorrido), { padding: [30, 30] });
+    BusSimulator.buses.forEach(b => this.addBus(b));
+  },
+  addBus(b) {
+    const r = RouteManager.byId(b.rutaId); if (!r || !Number.isFinite(b.lat)) return;
+    const n = h('div', { class: `bus ocupacion-${b.ocupacion}` }, b.id); this.busNodes[b.id] = n;
+    const mk = L.marker([b.lat, b.lng], { icon: L.divIcon({ className: '', html: n, iconSize: [40, 24], iconAnchor: [20, 12] }), zIndexOffset: 1000 }).addTo(this.map);
+    mk.bindPopup(() => this.busPopup(b)); mk.on('click', () => this.selectBus(b.id));
+    this.busMk[b.id] = mk; this.styleBus(b);
+  },
+  styleBus(b) { const n = this.busNodes[b.id]; if (n) n.style.setProperty('--s', (ESTADOS[b.estado] || ESTADOS.fuera).c); },
+  moveBus(b, lat, lng) { 
+    const mk = this.busMk[b.id]; 
+    if (mk) mk.setLatLng([lat, lng]); 
+    if (this.followBusId === b.id) this.map.setView([lat, lng]);
+  },
+  update() { BusSimulator.buses.forEach(b => this.styleBus(b)); if(this.highlightedStop) this.highlightForStop(this.highlightedStop); },
+  resetBuses() { 
+    Object.values(this.busMk).forEach(m => m.remove()); this.busMk = {}; this.busNodes = {}; this.clearStopHighlight(); this.followBusId = null;
+    BusSimulator.buses.forEach(b => this.addBus(b)); 
+  },
+  busPopup(b) {
+    const st = ESTADOS[b.estado] || ESTADOS.fuera, p = DataManager.data.paradas.find(x => x.id === b.proxima);
+    const btnFollow = h('button', { class: 'btn btn-sm btn-primary mt-2 w-full', onclick: () => { this.followBusId = b.id; showToast(`Siguiendo al ${b.nombre}`); this.map.closePopup(); } }, 'Seguir Bus');
+    return h('div', {}, h('strong', {}, `${b.nombre} (${b.id})`), h('p', {}, `Estado: ${st.t}`), h('p', {}, `Próxima: ${p ? p.nombre : 'N/A'}`), btnFollow);
+  },
+  stopPopup(p, n, r) {
+    const rows = BusSimulator.buses.filter(b => b.rutaId === r.id).map(b => ({ b, e: ETACalculator.calc(b, p) })).filter(x => ['ok', 'en-parada'].includes(x.e.estado));
+    const img = p.imagen ? h('img', { src: p.imagen, style:'width:100%; border-radius:8px; margin-bottom:8px; max-height:120px; object-fit:cover' }) : '';
+    return h('div', {}, img, h('strong', {}, p.nombre), h('p', {}, `Parada ${n} de ${r.paradas.length}`),
+      h('ul', {style:'padding-left:1rem; font-size:13px'}, ...rows.map(({b,e}) => h('li', {}, `${b.nombre}: ${e.etiqueta}`))));
+  },
+  selectBus(id) { this.followBusId = id; },
+  highlightForStop(stopId) {
+    this.highlightedStop = stopId;
+    const stop = DataManager.data.paradas.find(p => p.id === stopId);
+    BusSimulator.buses.forEach(b => {
+      const e = ETACalculator.calc(b, stop);
+      const going = ['ok', 'en-parada'].includes(e.estado);
+      const el = this.busMk[b.id] && this.busMk[b.id].getElement();
+      if (el) el.style.opacity = going ? '1' : '0.2';
+    });
+  },
+  clearStopHighlight() { this.highlightedStop = null; Object.values(this.busMk).forEach(mk => { if(mk.getElement()) mk.getElement().style.opacity = '1'; }); },
+  focusStop(id) { const mk = this.stopMk[id]; if (mk) { this.map.setView(mk.getLatLng(), 16); mk.openPopup(); this.highlightForStop(id); } },
+  locateUser() {
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const latlng = [pos.coords.latitude, pos.coords.longitude];
+        if (this.userMk) this.map.removeLayer(this.userMk);
+        this.userMk = L.marker(latlng, { icon: L.divIcon({ className: '', html: '<div class="user-loc" style="background:#3B82F6;width:20px;height:20px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 4px rgba(59,130,246,.4)"></div>', iconSize: [20, 20], iconAnchor: [10, 10] }) }).addTo(this.map);
+        this.map.setView(latlng, 16);
+      },
+      err => showToast('Permiso denegado', true)
+    );
+  },
+  setTheme(theme) {
+    if(!this.map) return;
+    const key = MAP_CONFIG.cartoKey.trim();
+    const url = key ? `https://basemaps.cartocdn.com/rastertiles/${theme === 'dark' ? 'dark_all' : 'light_all'}/{z}/{x}/{y}{r}.png?key=${key}` : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    if (this.tiles) this.map.removeLayer(this.tiles);
+    this.tiles = L.tileLayer(url, { maxZoom: 20 }).addTo(this.map);
+  },
+  destroy() { if (this.map) this.map.remove(); this.map = null; }
+};
+
+const UIController = {
+  lastTick: 0, sig: '',
+  fmt: new Intl.DateTimeFormat('es-CO', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }),
+  hm: new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Bogota', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }),
+  toMin: s => { const [H, M] = s.split(':').map(Number); return H * 60 + M; },
+  fase(hor) {
+    const [H, M] = this.hm.format(new Date()).split(':').map(Number), n = H * 60 + M;
+    return n < this.toMin(hor.inicio) ? 'antes' : n >= this.toMin(hor.fin) ? 'despues' : 'dentro';
+  },
+  init() {
+    const savedTheme = StorageManager.get('tema');
+    const hour = new Date().getHours();
+    this.applyTheme(savedTheme || (hour >= 18 || hour < 6 ? 'dark' : 'light'));
+    this.startClock(); this.startTickIndicator();
+    this.initPanel();
+    icons();
+    setTimeout(() => $('loader').classList.add('out'), 500);
+  },
+  switchView(view) {
+    document.querySelectorAll('main > section').forEach(s => s.classList.add('hidden'));
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    $(`view-${view}`).classList.remove('hidden');
+    document.querySelector(`.nav-tab[data-view="${view}"]`).classList.add('active');
+    
+    // Fix para móvil: Inicializar y forzar recalculo de tamaño
+    if(view === 'map') {
+      if (!MapController.map) {
+        MapController.init();
+        // Llamadas múltiples para asegurar que el mapa tome el 100% del contenedor en móvil
+        setTimeout(() => { if(MapController.map) MapController.map.invalidateSize(); }, 100);
+        setTimeout(() => { if(MapController.map) MapController.map.invalidateSize(); }, 300);
+        setTimeout(() => { if(MapController.map) MapController.map.invalidateSize(); }, 600);
+      } else {
+        setTimeout(() => MapController.map.invalidateSize(), 100);
+        setTimeout(() => MapController.map.invalidateSize(), 300);
+      }
+    }
+    if(view === 'admin' && !$('adminPanel').classList.contains('hidden')) { AdminController.renderAll(); }
+  },
+  markTick() { this.lastTick = Date.now(); },
+  startTickIndicator() {
+    setInterval(() => { const s = Math.max(0, Math.floor((Date.now() - this.lastTick) / 1000)); if($('lastUpd')) $('lastUpd').textContent = s < 2 ? 'Actualizado ahora' : `Hace ${s} s`; }, 1000);
+  },
+  initPanel() {
+    const fill = (id, all, items) => $(id).replaceChildren(h('option', { value: '' }, all), ...items.map(([v, t]) => h('option', { value: v }, t)));
+    fill('fBus', 'Todos los buses', DataManager.data.buses.map(b => [b.id, b.nombre]));
+    fill('fParada', 'Filtro de parada', DataManager.data.paradas.map(p => [p.id, p.nombre]));
+    
+    ['fBus', 'fParada'].forEach(id => $(id).addEventListener('change', () => { this.sig = ''; this.arrivals(); }));
+    $('simFactor').value = String(BusSimulator.factor); $('simForce').checked = BusSimulator.force;
+    $('simFactor').addEventListener('change', e => BusSimulator.config({ factor: +e.target.value }));
+    $('simForce').addEventListener('change', e => BusSimulator.config({ force: e.target.checked }));
+    $('btnSimReset').addEventListener('click', () => BusSimulator.reiniciar());
+    
+    $('searchStop').addEventListener('input', (e) => {
+      const val = e.target.value.toLowerCase();
+      const res = $('searchResults');
+      if(val.length < 2) { res.classList.add('hidden'); return; }
+      const matches = DataManager.data.paradas.filter(p => p.nombre.toLowerCase().includes(val));
+      if(matches.length) {
+        res.replaceChildren(...matches.map(p => h('li', { onclick: () => { if(MapController.map) MapController.focusStop(p.id); res.classList.add('hidden'); $('searchStop').value = p.nombre; } }, p.nombre)));
+        res.classList.remove('hidden');
+      } else { res.classList.add('hidden'); }
+    });
+    
+    $('btnNotif').addEventListener('click', () => {
+      if (!("Notification" in window)) return showToast('Notificaciones no soportadas', true);
+      Notification.requestPermission().then(p => {
+        if(p === 'granted') showToast('Notificaciones activadas');
+        else showToast('Permiso denegado', true);
+      });
+    });
+  },
+  refreshUI() {
+    const activos = BusSimulator.buses.filter(b => !['pendiente', 'fuera', 'finalizado'].includes(b.estado)).length;
+    if($('stBuses')) $('stBuses').textContent = activos;
+    if($('stParadas')) $('stParadas').textContent = DataManager.data.paradas.length;
+    if($('stHorario')) $('stHorario').textContent = `${DataManager.data.horario.inicio} - ${DataManager.data.horario.fin}`;
+    this.arrivals();
+  },
+  arrivals() {
+    const fBus = $('fBus').value, fParada = $('fParada').value, rows = [];
+    BusSimulator.buses.forEach(b => {
+      if (fBus && b.id !== fBus) return;
+      const r = RouteManager.byId(b.rutaId); if (!r) return;
+      const sid = fParada || b.proxima || r.paradas[0];
+      if (!r.paradas.includes(sid)) return;
+      const p = DataManager.data.paradas.find(x => x.id === sid);
+      rows.push({ b, p, r, e: ETACalculator.calc(b, p) });
+    });
+    rows.sort((x, y) => (Number.isFinite(x.e.minutos) ? x.e.minutos : 1e9) - (Number.isFinite(y.e.minutos) ? y.e.minutos : 1e9));
+    
+    const sig = rows.map(x => [x.b.id, x.p.id, x.e.etiqueta, x.b.estado, x.b.ocupacion].join('|')).join(';');
+    if (sig === this.sig) return; this.sig = sig;
+    
+    const ul = $('arrivals'); ul.replaceChildren();
+    if (!rows.length) { ul.append(h('li', { class: 'muted text-sm py-2 text-center' }, 'No hay buses activos.')); return; }
+    
+    rows.forEach(({ b, p, r, e }) => {
+      const st = ESTADOS[b.estado] || ESTADOS.fuera;
+      const ocupIcon = b.ocupacion === 'alta' ? 'users' : b.ocupacion === 'media' ? 'user' : 'user-check';
+      const ocupColor = b.ocupacion === 'alta' ? 'text-red-500' : b.ocupacion === 'media' ? 'text-yellow-500' : 'text-green-500';
+      
+      ul.append(h('li', { class: 'rounded-xl p-3 bg-[var(--card)] border border-[var(--border)] shadow-sm' },
+        h('div', { class: 'flex items-baseline justify-between gap-2' }, h('strong', {class:'text-[var(--text)]'}, `${b.nombre}`), h('span', { class: 'brand text-lg font-bold text-[var(--primary)]' }, e.etiqueta)),
+        h('p', { class: 'text-sm mt-1' }, `Hacia: ${p.nombre}`),
+        h('div', {class:'flex justify-between items-center mt-2'},
+          h('p', { class: 'muted text-xs flex items-center gap-1' }, h('i', { 'data-lucide': st.i, class: 'w-3 h-3', style: `color:${st.c}` }), `${st.t}`),
+          h('div', {class:'flex gap-1 items-center text-xs font-bold ' + ocupColor}, h('i', { 'data-lucide': ocupIcon, class: 'w-4 h-4' }), b.ocupacion.toUpperCase())
+        ),
+        h('div', {class:'flex gap-2 mt-2'},
+          h('button', { type: 'button', class: 'text-xs font-bold text-[var(--primary)] underline', onclick: () => { this.switchView('map'); setTimeout(()=> { if(MapController.map) MapController.focusStop(p.id); }, 300); } }, 'Ver en mapa'),
+          h('button', { type: 'button', class: 'text-xs font-bold text-blue-500 underline ml-auto', onclick: () => { 
+            const msg = prompt("Describe el problema:");
+            if(msg) { DataManager.data.reportes.push({ id: Date.now(), bus: b.id, texto: msg, fecha: new Date().toLocaleString() }); DataManager.save(); showToast('Reporte enviado.'); }
+          } }, 'Reportar')
+        )
+      ));
+    });
+    icons();
+  },
+  applyTheme(t) {
+    document.documentElement.classList.toggle('dark', t === 'dark');
+    if(MapController.map) MapController.setTheme(t);
+    StorageManager.set('tema', t);
+  },
+  startClock() {
+    const tick = () => {
+      $('clock').textContent = this.fmt.format(new Date());
+      const on = BusSimulator.force || this.fase(DataManager.data.horario) === 'dentro';
+      $('svcDot').classList.toggle('off', !on);
+      $('svcTxt').textContent = on ? 'Servicio activo' : 'Fuera de horario';
+    };
+    tick(); setInterval(tick, 1000);
+  }
+};
+
+const AdminController = {
+  currentTab: 'alertas',
+  init() {
+    $('btnLogin').addEventListener('click', () => {
+      if ($('adminPin').value === '1234') {
+        $('adminLogin').classList.add('hidden');
+        $('adminPanel').classList.remove('hidden');
+        this.renderAll();
+      } else { $('pinErr').classList.remove('hidden'); }
+    });
+    $('btnAddAlert').addEventListener('click', () => {
+      const txt = $('alertTxt').value.trim();
+      if (txt) { NotificationManager.addAlert(txt); $('alertTxt').value = ''; showToast('Alerta publicada.'); }
+    });
+    $('btnAddBus').addEventListener('click', () => this.addBus());
+    $('btnAddParada').addEventListener('click', () => this.addParada());
+    
+    $('btnExport').addEventListener('click', () => {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(DataManager.data, null, 2));
+      const dl = document.createElement('a'); dl.setAttribute("href", dataStr); dl.setAttribute("download", "unisinu_backup.json"); dl.click();
+    });
+    $('fileImport').addEventListener('change', (e) => {
+      const file = e.target.files[0]; if(!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => { try { const d = JSON.parse(ev.target.result); if(d.rutas && d.paradas) { DataManager.data = d; DataManager.save(); location.reload(); } else showToast('Archivo inválido', true); } catch { showToast('Error al leer JSON', true); } };
+      reader.readAsText(file);
+    });
+  },
+  switchTab(tab, evt) {
+    this.currentTab = tab;
+    document.querySelectorAll('#adminPanel .nav-tab').forEach(t => t.classList.remove('active'));
+    evt.currentTarget.classList.add('active');
+    ['alertas','buses','rutas','paradas','reportes','sistema'].forEach(t => $(`tab-${t}`).classList.toggle('hidden', t !== tab));
+  },
+  renderAll() { this.renderBuses(); this.renderRuta(); this.renderParadas(); this.renderReportes(); },
+  addBus() {
+    const id = 'B' + (DataManager.data.buses.length + 1);
+    DataManager.data.buses.push({ id, nombre: `Bus ${id}`, placa: `DEMO-00${id}`, capacidad: 40, rutaId: DataManager.data.rutas[0].id, velocidadKmh: 25, progresoRuta: 0, direccion: 'ida', estado: 'pendiente', ocupacion: 'baja' });
+    DataManager.save(); BusSimulator.init(); if(MapController.map) MapController.resetBuses(); UIController.initPanel(); UIController.refreshUI(); this.renderBuses();
+  },
+  renderBuses() {
+    const list = $('adminBusList'); list.replaceChildren();
+    DataManager.data.buses.forEach(b => {
+      list.append(h('div', { class: 'flex flex-col sm:flex-row gap-2 items-start sm:items-center bg-black/5 dark:bg-white/5 p-3 rounded-lg' },
+        h('span', { class: 'text-sm font-bold w-10' }, b.id),
+        h('div', {class:'flex gap-2 items-center flex-1 w-full'},
+          h('label', {class:'text-xs'}, 'Vel:'), h('input', { type: 'number', value: b.velocidadKmh, min:5, max:100, class: 'field w-20', onchange: (e) => { b.velocidadKmh = Math.max(5, +e.target.value); DataManager.save(); BusSimulator.init(); } }), h('span', { class: 'text-xs' }, 'km/h'),
+          h('label', {class:'text-xs ml-2'}, 'Ocup:'), h('select', { class: 'field w-24', onchange: (e) => { b.ocupacion = e.target.value; DataManager.save(); if(MapController.map) MapController.resetBuses(); } }, h('option', {value:'baja', selected: b.ocupacion==='baja'}, 'Baja'), h('option', {value:'media', selected: b.ocupacion==='media'}, 'Media'), h('option', {value:'alta', selected: b.ocupacion==='alta'}, 'Alta'))
+        ),
+        h('button', { class: 'btn btn-danger btn-sm ml-auto', onclick: () => {
+          if(DataManager.data.buses.length <= 1) return showToast('Debe haber al menos 1.', true);
+          DataManager.data.buses = DataManager.data.buses.filter(x => x.id !== b.id);
+          DataManager.save(); BusSimulator.init(); if(MapController.map) MapController.resetBuses(); this.renderBuses(); UIController.initPanel(); UIController.refreshUI();
+        } }, 'Eliminar')
+      ));
+    });
+  },
+  renderRuta() {
+    const r = DataManager.data.rutas[0]; const form = $('adminRutaForm'); form.replaceChildren();
+    form.append(h('label', {class:'text-sm font-bold block'}, 'Nombre'), h('input', {type:'text', value: r.nombre, class:'field mb-2', onchange: (e) => { r.nombre = e.target.value; DataManager.save(); UIController.initPanel(); } }),
+                h('label', {class:'text-sm font-bold block'}, 'Color'), h('input', {type:'color', value: r.color, class:'field w-20 h-12 p-1 cursor-pointer', onchange: (e) => { r.color = e.target.value; DataManager.save(); if(MapController.map) MapController.renderMapElements(); } }));
+  },
+  addParada() {
+    const id = 'P' + (Date.now());
+    DataManager.data.paradas.push({ id, nombre: 'Nueva Parada', lat: CAMPUS.coords[0], lng: CAMPUS.coords[1], imagen: '' });
+    DataManager.data.rutas[0].paradas.push(id); DataManager.save(); this.afterParadaChange(); this.renderParadas();
+  },
+  renderParadas() {
+    const list = $('adminParadaList'); list.replaceChildren();
+    DataManager.data.paradas.forEach(p => {
+      list.append(h('div', { class: 'flex flex-col gap-2 bg-black/5 dark:bg-white/5 p-3 rounded-lg border border-[var(--border)]' },
+        h('div', {class:'flex gap-2 items-center'}, h('strong', {class:'text-sm w-10'}, p.id), h('input', { type: 'text', value: p.nombre, class: 'field flex-1', onchange: (e) => { p.nombre = e.target.value; DataManager.save(); this.afterParadaChange(); } })),
+        h('div', {class:'flex gap-2 items-center flex-wrap'},
+          h('input', { type: 'number', step: '0.00001', value: p.lat, class: 'field w-24', onchange: (e) => { p.lat = +e.target.value; DataManager.save(); this.afterParadaChange(); } }),
+          h('input', { type: 'number', step: '0.00001', value: p.lng, class: 'field w-24', onchange: (e) => { p.lng = +e.target.value; DataManager.save(); this.afterParadaChange(); } }),
+          h('input', { type: 'url', value: p.imagen || '', class: 'field flex-1', placeholder:'URL Imagen', onchange: (e) => { p.imagen = e.target.value; DataManager.save(); } })
+        ),
+        h('div', {class:'flex justify-end mt-1'}, h('button', { class: 'btn btn-danger btn-sm', onclick: () => {
+          if(DataManager.data.rutas[0].paradas.length <= 2) return showToast('Mínimo 2 paradas.', true);
+          DataManager.data.paradas = DataManager.data.paradas.filter(x => x.id !== p.id); DataManager.data.rutas[0].paradas = DataManager.data.rutas[0].paradas.filter(id => id !== p.id);
+          DataManager.save(); this.afterParadaChange(); this.renderParadas();
+        } }, 'Eliminar'))
+      ));
+    });
+  },
+  renderReportes() {
+    const list = $('adminReportList'); list.replaceChildren();
+    const reps = DataManager.data.reportes || [];
+    if(!reps.length) { list.append(h('p', {class:'muted text-sm'}, 'No hay reportes.')); return; }
+    reps.slice().reverse().forEach(r => {
+      list.append(h('div', {class:'p-3 bg-black/5 dark:bg-white/5 rounded border-l-4 border-red-500'}, h('strong', {}, `Bus: ${r.bus}`), h('p', {class:'text-sm'}, r.texto), h('p', {class:'text-xs muted mt-1'}, r.fecha)));
+    });
+  },
+  afterParadaChange() { RouteManager.ajustarACalles().then(() => { if(MapController.map) MapController.renderMapElements(); BusSimulator.init(); UIController.initPanel(); UIController.refreshUI(); }); }
+};
+
+const NotificationManager = {
+  init() {
+    const ann = DataManager.data.anuncios || [];
+    const banner = $('notifBanner'), txt = $('notifText'), homeList = $('homeAlerts');
+    if (ann.length > 0) {
+      banner.classList.remove('hidden'); txt.textContent = ann[ann.length - 1].texto;
+      homeList.replaceChildren(...ann.map(a => h('p', { class: 'text-sm border-l-2 border-[var(--primary)] pl-3 py-1 bg-black/5 dark:bg-white/5 rounded-r' }, a.texto)));
+    } else { banner.classList.add('hidden'); homeList.replaceChildren(h('p', { class: 'muted text-sm italic' }, 'No hay novedades.')); }
+  },
+  addAlert(text) { DataManager.data.anuncios.push({ id: Date.now(), texto: text }); DataManager.save(); this.init(); }
+};
+
+document.addEventListener('DOMContentLoaded', async () => {
+  DataManager.load();
+  await RouteManager.ajustarACalles();
+  
+  NotificationManager.init();
+  AdminController.init();
+  BusSimulator.init();
+  UIController.init();
+  UIController.refreshUI();
+  
+  $('btnCenter').addEventListener('click', () => { if (MapController.map) MapController.map.fitBounds(L.latLngBounds(DataManager.data.rutas[0].recorrido)); });
+  $('btnLocate').addEventListener('click', () => { if(MapController.map) MapController.locateUser(); else showToast('Abre el mapa primero'); });
+  $('btnInstall').addEventListener('click', async () => { if(deferredPrompt) { deferredPrompt.prompt(); const {outcome} = await deferredPrompt.userChoice; deferredPrompt = null; $('btnInstall').classList.add('hidden'); } });
+});
+</script>
+</body>
+</html>
