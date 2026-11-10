@@ -276,22 +276,26 @@ h1,h2,h3,.brand{font-family:Poppins,Inter,sans-serif}
 <script>
 'use strict';
 
-const CAMPUS = { nombre: 'Universidad del Sinú', coords: [8.76929, -75.88648] };
-// SOLO 2 BUSES POR DEFECTO
+const CAMPUS = { nombre: 'Universidad del Sinú', coords: [8.7892, -75.8641] };
+// RUTA DE IDA Y VUELTA (SIN BUCLE FÍSICO)
 const DATA = {
   rutas: [{
-    id: 'unisinu-metro', nombre: 'Ruta Metro Unisinú', color: '#D8000C', activa: true,
-    recorrido: [[8.76929,-75.88648],[8.7657,-75.8853],[8.7621,-75.8841],[8.7585,-75.8830]],
-    paradas: ['P1', 'P3', 'P4']
+    id: 'unisinu-metro', nombre: 'Ruta Unisinú - Rotonda', color: '#D8000C', activa: true,
+    recorrido: [
+      [8.78920, -75.86410], // 1. Entrada Unisinú
+      [8.78750, -75.86550], // 2. Bloques
+      [8.78600, -75.86720]  // 3. Rotonda (Punto final)
+    ],
+    paradas: ['P1', 'P2', 'P3']
   }],
   paradas: [
-    { id: 'P1', nombre: 'Entrada principal del campus', lat: 8.76929, lng: -75.88648, imagen: '' },
-    { id: 'P3', nombre: 'Parada intermedia (Puente)', lat: 8.7621, lng: -75.8841, imagen: '' },
-    { id: 'P4', nombre: 'Zona centro', lat: 8.7585, lng: -75.8830, imagen: '' }
+    { id: 'P1', nombre: 'Entrada Principal Unisinú', lat: 8.78920, lng: -75.86410, imagen: '' },
+    { id: 'P2', nombre: 'Bloques Académicos', lat: 8.78750, lng: -75.86550, imagen: '' },
+    { id: 'P3', nombre: 'Rotonda Unisinú', lat: 8.78600, lng: -75.86720, imagen: '' }
   ],
   buses: [
-    { id: 'B1', nombre: 'Bus 01', placa: 'DEMO-001', capacidad: 40, rutaId: 'unisinu-metro', velocidadKmh: 25, progresoRuta: 0.05, direccion: 'ida', estado: 'pendiente', ocupacion: 'baja' },
-    { id: 'B2', nombre: 'Bus 02', placa: 'DEMO-002', capacidad: 40, rutaId: 'unisinu-metro', velocidadKmh: 30, progresoRuta: 0.50, direccion: 'ida', estado: 'pendiente', ocupacion: 'media' }
+    { id: 'B1', nombre: 'Bus 01', placa: 'UNI-001', capacidad: 40, rutaId: 'unisinu-metro', velocidadKmh: 20, progresoRuta: 0.05, direccion: 'ida', estado: 'pendiente', ocupacion: 'baja' },
+    { id: 'B2', nombre: 'Bus 02', placa: 'UNI-002', capacidad: 40, rutaId: 'unisinu-metro', velocidadKmh: 22, progresoRuta: 0.50, direccion: 'regreso', estado: 'pendiente', ocupacion: 'media' }
   ],
   horario: { inicio: '06:00', fin: '20:00', zonaHoraria: 'America/Bogota' },
   anuncios: [], reportes: []
@@ -418,9 +422,20 @@ const ETACalculator = {
     if (!r || !s || !Number.isFinite(bus.progresoRuta)) return out('no-disponible');
     if (bus.estado === 'fuera') return out('sin-servicio');
     if (bus.estado === 'pendiente') return out('pendiente');
-    const T = r.total, ida = bus.direccion === 'ida', f = x => ida ? x : 1 - x;
-    const pp = f(bus.progresoRuta), ss = f(s.p);
-    let d = ss >= pp ? (ss - pp) * T : ((1 - pp) + (1 - ss)) * T;
+    const T = r.total;
+    
+    // LÓGICA DE IDA Y VUELTA PARA EL ETA
+    const pp = bus.progresoRuta, ss = s.p;
+    let d = 0;
+    
+    if (bus.direccion === 'ida') {
+      if (ss >= pp) d = (ss - pp) * T;
+      else d = ((1 - pp) + (1 - ss)) * T; // Tiene que llegar al final y devolverse
+    } else {
+      if (ss <= pp) d = (pp - ss) * T;
+      else d = (pp + ss) * T; // Tiene que llegar al inicio y volver a subir
+    }
+
     if (bus.estado === 'parada' && d <= 0.025) return out('en-parada', 0);
     return out('ok', d / bus.velocidadKmh * 60 / BusSimulator.factor);
   }
@@ -435,8 +450,6 @@ const BusSimulator = {
     this.buses = DataManager.data.buses.map(b => ({ ...b, dwell: 0, lat: NaN, lng: NaN, from: null, to: null, t0: 0 }));
     this.buses.forEach(b => { const r = RouteManager.byId(b.rutaId); if (r) this.mover(b, r); });
     this.start();
-    
-    // BUGFIX: Asegurar que el mapa se actualice limpiamente al iniciar el simulador
     if (MapController.map) MapController.resetBuses();
   },
   start() { this.stop(); this.tickId = setInterval(() => this.tick(), 1000); const frame = () => { this.render(); this.rafId = requestAnimationFrame(frame); }; this.rafId = requestAnimationFrame(frame); },
@@ -448,14 +461,37 @@ const BusSimulator = {
     const fase = this.force ? 'dentro' : UIController.fase(DataManager.data.horario);
     this.buses.forEach(b => {
       const r = RouteManager.byId(b.rutaId);
-      if (!r || fase !== 'dentro') { b.estado = fase === 'antes' ? 'pendiente' : 'fuera'; return; }
-      if (b.estado === 'pendiente' || b.estado === 'fuera') b.estado = 'recorrido';
+      if (!r || fase !== 'dentro' || b.estado === 'fuera') { 
+         if (fase !== 'dentro') b.estado = fase === 'antes' ? 'pendiente' : 'fuera';
+         return; 
+      }
+      
+      if (b.estado === 'pendiente') b.estado = 'recorrido';
       if (b.dwell > 0) b.dwell--;
       else {
         const dp = (b.velocidadKmh * this.factor / 3600) / r.total;
-        b.progresoRuta += b.direccion === 'ida' ? dp : -dp;
-        if (b.progresoRuta >= 1) { b.progresoRuta = 1; b.direccion = 'regreso'; }
-        else if (b.progresoRuta <= 0) { b.progresoRuta = 0; b.direccion = 'ida'; }
+        
+        // LÓGICA DE MOVIMIENTO IDA Y VUELTA
+        if (b.direccion === 'ida') {
+          b.progresoRuta += dp;
+          if (b.progresoRuta >= 1) {
+            b.progresoRuta = 1;
+            b.direccion = 'regreso'; // Llega a la rotonda y se devuelve
+            b.dwell = 5; // Pausa de 5 seg para recoger estudiantes
+          }
+        } else {
+          b.progresoRuta -= dp;
+          if (b.progresoRuta <= 0) {
+            b.progresoRuta = 0;
+            b.direccion = 'ida'; // Llega a la U y vuelve a salir
+            b.dwell = 5; // Pausa de 5 seg para dejar estudiantes
+          }
+        }
+
+        // SIMULAR PASAJEROS (Se llena en la U y se vacía en la Rotonda)
+        if (b.direccion === 'ida' && b.progresoRuta < 0.15) b.ocupacion = 'alta';
+        else if (b.direccion === 'regreso' && b.progresoRuta > 0.85) b.ocupacion = 'alta';
+        else if (b.direccion === 'regreso' && b.progresoRuta < 0.15) b.ocupacion = 'baja';
       }
       this.mover(b, r);
       this.checkNotifications(b);
@@ -481,7 +517,7 @@ const BusSimulator = {
   render() {
     const now = performance.now();
     this.buses.forEach(b => {
-      if (!b.to || !MapController.map) return;
+      if (!b.to || !MapController.map || b.estado === 'fuera') return;
       const u = Math.min(1, Math.max(0, (now - b.t0) / 1000));
       MapController.moveBus(b, b.from[0] + (b.to[0] - b.from[0]) * u, b.from[1] + (b.to[1] - b.from[1]) * u);
     });
@@ -492,7 +528,7 @@ const MapController = {
   map: null, tiles: null, stopMk: {}, busMk: {}, busNodes: {}, lines: {}, highlightedStop: null, followBusId: null,
   init() {
     this.destroy();
-    this.map = L.map('map', { zoomControl: false }).setView(CAMPUS.coords, 14);
+    this.map = L.map('map', { zoomControl: false }).setView(CAMPUS.coords, 15);
     L.control.zoom({ position: 'bottomleft' }).addTo(this.map);
     this.setTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light');
 
@@ -516,25 +552,37 @@ const MapController = {
       this.lines[r.id] = L.polyline(r.recorrido, { color: r.color, weight: 5, opacity: .9 }).addTo(this.layerGroup);
       r.paradas.forEach((id, i) => {
         const p = DataManager.data.paradas.find(x => x.id === id); if (!p) return;
-        this.stopMk[id] = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', html: `<div class="stop" style="border-color:${r.color}">${i + 1}</div>`, iconSize: [28, 28], iconAnchor: [14, 14] }) })
+        
+        const esRotonda = p.nombre.includes('Rotonda');
+        const iconHtml = esRotonda 
+          ? `<div style="background:#D4AF37; color:#fff; border-radius:50%; width:34px; height:34px; display:flex; align-items:center; justify-content:center; border:2px solid #D8000C; box-shadow:0 2px 6px rgba(0,0,0,0.4); font-size:18px;">🚦</div>`
+          : `<div class="stop" style="border-color:${r.color}">${i + 1}</div>`;
+
+        this.stopMk[id] = L.marker([p.lat, p.lng], { icon: L.divIcon({ className: '', html: iconHtml, iconSize: esRotonda ? [34,34] : [28, 28], iconAnchor: esRotonda ? [17,17] : [14, 14] }) })
           .addTo(this.layerGroup).bindPopup(() => this.stopPopup(p, i + 1, r));
         this.stopMk[id].on('click', () => this.highlightForStop(id));
       });
     });
     this.map.fitBounds(L.latLngBounds(DataManager.data.rutas[0].recorrido), { padding: [30, 30] });
-    
-    // BUGFIX: El mapa limpia los buses viejos y dibuja los nuevos aquí
     this.resetBuses();
   },
   addBus(b) {
     const r = RouteManager.byId(b.rutaId); if (!r || !Number.isFinite(b.lat)) return;
-    const n = h('div', { class: `bus ocupacion-${b.ocupacion}` }, b.id); this.busNodes[b.id] = n;
-    // BUGFIX: Añadir al layerGroup, NO directamente al mapa, para que se limpien bien
+    
+    const colorOcup = b.estado === 'fuera' ? 'alta' : b.ocupacion;
+    const n = h('div', { class: `bus ocupacion-${colorOcup}` }, b.id); this.busNodes[b.id] = n;
+    
     const mk = L.marker([b.lat, b.lng], { icon: L.divIcon({ className: '', html: n, iconSize: [40, 24], iconAnchor: [20, 12] }), zIndexOffset: 1000 }).addTo(this.layerGroup);
     mk.bindPopup(() => this.busPopup(b)); mk.on('click', () => this.selectBus(b.id));
     this.busMk[b.id] = mk; this.styleBus(b);
   },
-  styleBus(b) { const n = this.busNodes[b.id]; if (n) n.style.setProperty('--s', (ESTADOS[b.estado] || ESTADOS.fuera).c); },
+  styleBus(b) { 
+    const n = this.busNodes[b.id]; 
+    if (n) {
+      n.style.setProperty('--s', (ESTADOS[b.estado] || ESTADOS.fuera).c);
+      n.className = `bus ocupacion-${b.estado === 'fuera' ? 'alta' : b.ocupacion}`;
+    }
+  },
   moveBus(b, lat, lng) { 
     const mk = this.busMk[b.id]; 
     if (mk) mk.setLatLng([lat, lng]); 
@@ -542,15 +590,15 @@ const MapController = {
   },
   update() { BusSimulator.buses.forEach(b => this.styleBus(b)); if(this.highlightedStop) this.highlightForStop(this.highlightedStop); },
   resetBuses() { 
-    // Limpieza segura de buses antiguos
     Object.values(this.busMk).forEach(m => m.remove()); 
     this.busMk = {}; this.busNodes = {}; this.clearStopHighlight(); this.followBusId = null;
     BusSimulator.buses.forEach(b => this.addBus(b)); 
   },
   busPopup(b) {
-    const st = ESTADOS[b.estado] || ESTADOS.fuera, p = DataManager.data.paradas.find(x => x.id === b.proxima);
+    const st = ESTADOS[b.estado] || ESTADOS.fuera;
+    const dirText = b.direccion === 'ida' ? 'Hacia la Rotonda' : 'Hacia la Universidad';
     const btnFollow = h('button', { class: 'btn btn-sm btn-primary mt-2 w-full', onclick: () => { this.followBusId = b.id; showToast(`Siguiendo al ${b.nombre}`); this.map.closePopup(); } }, 'Seguir Bus');
-    return h('div', {}, h('strong', {}, `${b.nombre} (${b.id})`), h('p', {}, `Estado: ${st.t}`), h('p', {}, `Próxima: ${p ? p.nombre : 'N/A'}`), btnFollow);
+    return h('div', {}, h('strong', {}, `${b.nombre} (${b.id})`), h('p', {}, `Estado: ${st.t}`), h('p', {}, `Dirección: ${dirText}`), btnFollow);
   },
   stopPopup(p, n, r) {
     const rows = BusSimulator.buses.filter(b => b.rutaId === r.id).map(b => ({ b, e: ETACalculator.calc(b, p) })).filter(x => ['ok', 'en-parada'].includes(x.e.estado));
@@ -609,7 +657,6 @@ const UIController = {
     this.initPanel();
     icons();
     
-    // BUGFIX: Recordar si el admin ya inicio sesion
     if(sessionStorage.getItem('adminAuth') === 'true') {
       $('adminLogin').classList.add('hidden');
       $('adminPanel').classList.remove('hidden');
@@ -690,7 +737,7 @@ const UIController = {
     });
     rows.sort((x, y) => (Number.isFinite(x.e.minutos) ? x.e.minutos : 1e9) - (Number.isFinite(y.e.minutos) ? y.e.minutos : 1e9));
     
-    const sig = rows.map(x => [x.b.id, x.p.id, x.e.etiqueta, x.b.estado, x.b.ocupacion].join('|')).join(';');
+    const sig = rows.map(x => [x.b.id, x.p.id, x.e.etiqueta, x.b.estado, x.b.ocupacion, x.b.direccion].join('|')).join(';');
     if (sig === this.sig) return; this.sig = sig;
     
     const ul = $('arrivals'); ul.replaceChildren();
@@ -698,15 +745,23 @@ const UIController = {
     
     rows.forEach(({ b, p, r, e }) => {
       const st = ESTADOS[b.estado] || ESTADOS.fuera;
-      const ocupIcon = b.ocupacion === 'alta' ? 'users' : b.ocupacion === 'media' ? 'user' : 'user-check';
-      const ocupColor = b.ocupacion === 'alta' ? 'text-red-500' : b.ocupacion === 'media' ? 'text-yellow-500' : 'text-green-500';
+      const ocupIcon = b.estado === 'fuera' ? 'alert-triangle' : b.ocupacion === 'alta' ? 'users' : b.ocupacion === 'media' ? 'user' : 'user-check';
+      const ocupColor = b.estado === 'fuera' ? 'text-red-500' : b.ocupacion === 'alta' ? 'text-red-500' : b.ocupacion === 'media' ? 'text-yellow-500' : 'text-green-500';
+      const dirBadge = b.direccion === 'ida' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800';
+      const dirText = b.direccion === 'ida' ? 'IDA' : 'REGRESO';
       
       ul.append(h('li', { class: 'rounded-xl p-3 bg-[var(--card)] border border-[var(--border)] shadow-sm' },
-        h('div', { class: 'flex items-baseline justify-between gap-2' }, h('strong', {class:'text-[var(--text)]'}, `${b.nombre}`), h('span', { class: 'brand text-lg font-bold text-[var(--primary)]' }, e.etiqueta)),
-        h('p', { class: 'text-sm mt-1' }, `Hacia: ${p.nombre}`),
+        h('div', { class: 'flex items-baseline justify-between gap-2' }, 
+          h('strong', {class:'text-[var(--text)]'}, `${b.nombre}`), 
+          h('span', { class: 'brand text-lg font-bold text-[var(--primary)]' }, e.etiqueta)
+        ),
+        h('div', { class: 'flex gap-2 items-center mt-1' },
+          h('span', { class: `text-[10px] font-bold px-2 py-0.5 rounded ${dirBadge}` }, dirText),
+          h('p', { class: 'text-sm' }, `Hacia: ${p.nombre}`)
+        ),
         h('div', {class:'flex justify-between items-center mt-2'},
           h('p', { class: 'muted text-xs flex items-center gap-1' }, h('i', { 'data-lucide': st.i, class: 'w-3 h-3', style: `color:${st.c}` }), `${st.t}`),
-          h('div', {class:'flex gap-1 items-center text-xs font-bold ' + ocupColor}, h('i', { 'data-lucide': ocupIcon, class: 'w-4 h-4' }), b.ocupacion.toUpperCase())
+          h('div', {class:'flex gap-1 items-center text-xs font-bold ' + ocupColor}, h('i', { 'data-lucide': ocupIcon, class: 'w-4 h-4' }), b.estado === 'fuera' ? 'EMERGENCIA' : b.ocupacion.toUpperCase())
         ),
         h('div', {class:'flex gap-2 mt-2'},
           h('button', { type: 'button', class: 'text-xs font-bold text-[var(--primary)] underline', onclick: () => { this.switchView('map'); setTimeout(()=> { if(MapController.map) MapController.focusStop(p.id); }, 300); } }, 'Ver en mapa'),
@@ -742,7 +797,7 @@ const AdminController = {
       if ($('adminPin').value === '1234') {
         $('adminLogin').classList.add('hidden');
         $('adminPanel').classList.remove('hidden');
-        sessionStorage.setItem('adminAuth', 'true'); // BUGFIX: Guardar login
+        sessionStorage.setItem('adminAuth', 'true'); 
         this.renderAll();
       } else { $('pinErr').classList.remove('hidden'); }
     });
@@ -773,19 +828,25 @@ const AdminController = {
   renderAll() { this.renderBuses(); this.renderRuta(); this.renderParadas(); this.renderReportes(); },
   addBus() {
     const id = 'B' + (DataManager.data.buses.length + 1);
-    DataManager.data.buses.push({ id, nombre: `Bus ${id}`, placa: `DEMO-00${id}`, capacidad: 40, rutaId: DataManager.data.rutas[0].id, velocidadKmh: 25, progresoRuta: 0, direccion: 'ida', estado: 'pendiente', ocupacion: 'baja' });
+    DataManager.data.buses.push({ id, nombre: `Bus ${id}`, placa: `UNI-00${id}`, capacidad: 40, rutaId: DataManager.data.rutas[0].id, velocidadKmh: 25, progresoRuta: 0, direccion: 'ida', estado: 'pendiente', ocupacion: 'baja' });
     DataManager.save(); BusSimulator.init(); if(MapController.map) MapController.resetBuses(); UIController.initPanel(); UIController.refreshUI(); this.renderBuses();
   },
   renderBuses() {
     const list = $('adminBusList'); list.replaceChildren();
     DataManager.data.buses.forEach(b => {
+      const enEmergencia = b.estado === 'fuera';
       list.append(h('div', { class: 'flex flex-col sm:flex-row gap-2 items-start sm:items-center bg-black/5 dark:bg-white/5 p-3 rounded-lg' },
         h('span', { class: 'text-sm font-bold w-10' }, b.id),
-        h('div', {class:'flex gap-2 items-center flex-1 w-full'},
+        h('div', {class:'flex gap-2 items-center flex-1 w-full flex-wrap'},
           h('label', {class:'text-xs'}, 'Vel:'), h('input', { type: 'number', value: b.velocidadKmh, min:5, max:100, class: 'field w-20', onchange: (e) => { b.velocidadKmh = Math.max(5, +e.target.value); DataManager.save(); BusSimulator.init(); } }), h('span', { class: 'text-xs' }, 'km/h'),
-          h('label', {class:'text-xs ml-2'}, 'Ocup:'), h('select', { class: 'field w-24', onchange: (e) => { b.ocupacion = e.target.value; DataManager.save(); BusSimulator.init(); } }, h('option', {value:'baja', selected: b.ocupacion==='baja'}, 'Baja'), h('option', {value:'media', selected: b.ocupacion==='media'}, 'Media'), h('option', {value:'alta', selected: b.ocupacion==='alta'}, 'Alta'))
+          h('label', {class:'text-xs ml-2'}, 'Ocup:'), h('select', { class: 'field w-24', onchange: (e) => { b.ocupacion = e.target.value; DataManager.save(); BusSimulator.init(); } }, h('option', {value:'baja', selected: b.ocupacion==='baja'}, 'Baja'), h('option', {value:'media', selected: b.ocupacion==='media'}, 'Media'), h('option', {value:'alta', selected: b.ocupacion==='alta'}, 'Alta')),
+          
+          h('button', { class: `btn btn-sm ml-auto ${enEmergencia ? 'btn-primary' : 'btn-danger'}`, onclick: () => {
+            b.estado = enEmergencia ? 'recorrido' : 'fuera';
+            DataManager.save(); BusSimulator.init(); if(MapController.map) MapController.resetBuses(); this.renderBuses(); UIController.refreshUI();
+          } }, enEmergencia ? 'Reanudar' : '🚨 Emergencia')
         ),
-        h('button', { class: 'btn btn-danger btn-sm ml-auto', onclick: () => {
+        h('button', { class: 'btn btn-danger btn-sm ml-auto mt-2 sm:mt-0', onclick: () => {
           if(DataManager.data.buses.length <= 1) return showToast('Debe haber al menos 1.', true);
           DataManager.data.buses = DataManager.data.buses.filter(x => x.id !== b.id);
           DataManager.save(); BusSimulator.init(); if(MapController.map) MapController.resetBuses(); this.renderBuses(); UIController.initPanel(); UIController.refreshUI();
