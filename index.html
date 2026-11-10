@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
@@ -15,10 +15,7 @@
 <script defer src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
 <style>
 :root{
-  --bg:#F9F9F9; --card:#FFFFFF; --border:#E5E7EB; --text:#1F2937; --muted:#6B7280;
-  --primary:#D8000C; --primary-hover:#B3000A; --gold:#D4AF37; --navy:#1A1A1A;
-}
-.dark{
+  /* Forzamos las variables del modo oscuro directamente aquí */
   --bg:#121212; --card:#1E1E1E; --border:#333333; --text:#F3F4F6; --muted:#9CA3AF;
   --primary:#D8000C; --primary-hover:#E6000D; --gold:#D4AF37; --navy:#0A0A0A;
 }
@@ -87,10 +84,6 @@ h1,h2,h3,.brand{font-family:Poppins,Inter,sans-serif}
       <p class="text-xs opacity-80 hidden sm:block">Universidad del Sinú — Montería</p>
     </div>
     <div class="ml-auto flex items-center gap-2 sm:gap-3">
-      <!-- BOTÓN DE TEMA (SOL/LUNA) -->
-      <button id="btnTheme" class="btn bg-transparent border-none text-white hover:bg-white/10" style="padding: 0 8px; min-height: 32px;" title="Cambiar tema">
-        <i data-lucide="moon" class="w-5 h-5"></i>
-      </button>
       <button id="btnInstall" class="btn hidden bg-[var(--primary)] text-white border-none text-xs" type="button"><i data-lucide="download"></i> Instalar</button>
       <div class="flex items-center gap-2 text-sm mr-2" role="status">
         <span id="svcDot" class="dot" aria-hidden="true"></span>
@@ -155,10 +148,10 @@ h1,h2,h3,.brand{font-family:Poppins,Inter,sans-serif}
   <section id="view-map" class="hidden flex-1 flex flex-col lg:flex-row overflow-hidden relative">
     
     <div class="w-full h-[45vh] lg:h-full lg:flex-1 relative z-0 shrink-0">
-      <div id="map" class="absolute inset-0 z-0 bg-gray-200 dark:bg-gray-800"></div>
+      <div id="map" class="absolute inset-0 z-0 bg-gray-800"></div>
       
       <div class="absolute right-4 bottom-6 z-[500] flex flex-col gap-2">
-        <button id="btnLocate" class="btn bg-white text-[var(--text)] shadow-lg" type="button" title="Mi ubicación">
+        <button id="btnLocate" class="btn bg-[var(--card)] text-[var(--text)] shadow-lg" type="button" title="Mi ubicación">
           <i data-lucide="navigation" class="text-blue-500"></i>
         </button>
         <button id="btnCenter" class="btn btn-primary shadow-lg" type="button">
@@ -280,33 +273,27 @@ h1,h2,h3,.brand{font-family:Poppins,Inter,sans-serif}
 <script>
 'use strict';
 
-const CAMPUS = { nombre: 'Universidad del Sinú', coords: [8.7892, -75.8641] };
-// RUTA CORREGIDA CON MÁS PUNTOS PARA SEGUIR LA VÍA
+// COORDENADAS REALES DE LA UNIVERSIDAD Y SU RUTA AL CENTRO
+const CAMPUS = { nombre: 'Universidad del Sinú', coords: [8.76929, -75.88648] };
 const DATA = {
   rutas: [{
-    id: 'unisinu-metro', nombre: 'Ruta Unisinú - Rotonda', color: '#D8000C', activa: true,
+    id: 'unisinu-metro', nombre: 'Ruta Metro Unisinú', color: '#D8000C', activa: true,
     recorrido: [
-      [8.78920, -75.86410], // Entrada U
-      [8.78880, -75.86430],
-      [8.78840, -75.86460],
-      [8.78800, -75.86490],
-      [8.78760, -75.86520],
-      [8.78720, -75.86560],
-      [8.78680, -75.86600],
-      [8.78640, -75.86650],
-      [8.78600, -75.86720], // Rotonda
-      [8.78560, -75.86780]  // Más allá de la rotonda
+      [8.76929, -75.88648], // 1. Universidad
+      [8.76570, -75.88530], // 2. Intermedia
+      [8.76210, -75.88410], // 3. Puente
+      [8.75850, -75.88300]  // 4. Centro
     ],
-    paradas: ['P1', 'P2', 'P3']
+    paradas: ['P1', 'P3', 'P4']
   }],
   paradas: [
-    { id: 'P1', nombre: 'Entrada Principal Unisinú', lat: 8.78920, lng: -75.86410, imagen: '' },
-    { id: 'P2', nombre: 'Bloques Académicos', lat: 8.78760, lng: -75.86520, imagen: '' },
-    { id: 'P3', nombre: 'Rotonda Unisinú', lat: 8.78600, lng: -75.86720, imagen: '' }
+    { id: 'P1', nombre: 'Entrada principal del campus', lat: 8.76929, lng: -75.88648, imagen: '' },
+    { id: 'P3', nombre: 'Parada intermedia (Puente)', lat: 8.76210, lng: -75.88410, imagen: '' },
+    { id: 'P4', nombre: 'Zona centro', lat: 8.75850, lng: -75.88300, imagen: '' }
   ],
   buses: [
-    { id: 'B1', nombre: 'Bus 01', placa: 'UNI-001', capacidad: 40, rutaId: 'unisinu-metro', velocidadKmh: 20, progresoRuta: 0.05, direccion: 'ida', estado: 'pendiente', ocupacion: 'baja' },
-    { id: 'B2', nombre: 'Bus 02', placa: 'UNI-002', capacidad: 40, rutaId: 'unisinu-metro', velocidadKmh: 22, progresoRuta: 0.50, direccion: 'regreso', estado: 'pendiente', ocupacion: 'media' }
+    { id: 'B1', nombre: 'Bus 01', placa: 'UNI-001', capacidad: 40, rutaId: 'unisinu-metro', velocidadKmh: 25, progresoRuta: 0.05, direccion: 'ida', estado: 'pendiente', ocupacion: 'baja' },
+    { id: 'B2', nombre: 'Bus 02', placa: 'UNI-002', capacidad: 40, rutaId: 'unisinu-metro', velocidadKmh: 30, progresoRuta: 0.50, direccion: 'regreso', estado: 'pendiente', ocupacion: 'media' }
   ],
   horario: { inicio: '06:00', fin: '20:00', zonaHoraria: 'America/Bogota' },
   anuncios: [], reportes: []
@@ -341,7 +328,7 @@ const ESTADOS = {
 
 const manifest = {
   name: "Unisinu Metro", short_name: "Metro", start_url: ".", display: "standalone",
-  background_color: "#1A1A1A", theme_color: "#D8000C",
+  background_color: "#121212", theme_color: "#D8000C",
   icons: [{ src: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxOTIiIGhlaWdodD0iMTkyIiB2aWV3Qm94PSIwIDAgMzIgMzIiPjxyZWN0IHdpZHRoPSIzMiIgaGVpZ2h0PSIzMiIgcng9IjkiIGZpbGw9IiNEOODAwMEMiLz48cGF0aCBkPSJNNyAyM1YxMGw5IDkgOS05djEzIiBmaWxsPSJub25lIiBzdHJva2U9IiNmZmYiIHN0cm9rZS13aWR0aD0iMyIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PC9zdmc+", sizes: "192x192", type: "image/svg+xml" }]
 };
 const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
@@ -360,7 +347,6 @@ const StorageManager = {
   set(k, v) { try { localStorage.setItem(this.P + k, JSON.stringify(v)); return true; } catch (e) { return false; } },
   clearData() { 
     try { 
-      // Solo borra los datos de la app, NO el tema ni preferencias
       localStorage.removeItem(this.P + 'data'); 
       localStorage.removeItem(this.P + 'calles'); 
     } catch (e) {} 
@@ -553,9 +539,10 @@ const MapController = {
   map: null, tiles: null, stopMk: {}, busMk: {}, busNodes: {}, lines: {}, highlightedStop: null, followBusId: null,
   init() {
     this.destroy();
-    this.map = L.map('map', { zoomControl: false }).setView(CAMPUS.coords, 15);
+    this.map = L.map('map', { zoomControl: false }).setView(CAMPUS.coords, 14);
     L.control.zoom({ position: 'bottomleft' }).addTo(this.map);
-    this.setTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+    // Forzamos tema oscuro en el mapa siempre
+    this.setTheme('dark');
 
     this.renderMapElements();
     this.map.on('click', () => this.clearStopHighlight());
@@ -621,7 +608,7 @@ const MapController = {
   },
   busPopup(b) {
     const st = ESTADOS[b.estado] || ESTADOS.fuera;
-    const dirText = b.direccion === 'ida' ? 'Hacia la Rotonda' : 'Hacia la Universidad';
+    const dirText = b.direccion === 'ida' ? 'Hacia el Centro' : 'Hacia la Universidad';
     const btnFollow = h('button', { class: 'btn btn-sm btn-primary mt-2 w-full', onclick: () => { this.followBusId = b.id; showToast(`Siguiendo al ${b.nombre}`); this.map.closePopup(); } }, 'Seguir Bus');
     return h('div', {}, h('strong', {}, `${b.nombre} (${b.id})`), h('p', {}, `Estado: ${st.t}`), h('p', {}, `Dirección: ${dirText}`), btnFollow);
   },
@@ -656,9 +643,10 @@ const MapController = {
     );
   },
   setTheme(theme) {
+    // Ya no usamos tema claro, siempre forzamos 'dark' en el mapa
     if(!this.map) return;
     const key = MAP_CONFIG.cartoKey.trim();
-    const url = key ? `https://basemaps.cartocdn.com/rastertiles/${theme === 'dark' ? 'dark_all' : 'light_all'}/{z}/{x}/{y}{r}.png?key=${key}` : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const url = key ? `https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png?key=${key}` : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
     if (this.tiles) this.map.removeLayer(this.tiles);
     this.tiles = L.tileLayer(url, { maxZoom: 20 }).addTo(this.map);
   },
@@ -675,18 +663,11 @@ const UIController = {
     return n < this.toMin(hor.inicio) ? 'antes' : n >= this.toMin(hor.fin) ? 'despues' : 'dentro';
   },
   init() {
-    const savedTheme = StorageManager.get('tema');
-    const hour = new Date().getHours();
-    this.applyTheme(savedTheme || (hour >= 18 || hour < 6 ? 'dark' : 'light'));
+    // Ya no leemos el tema guardado, siempre forzamos modo oscuro
+    document.documentElement.classList.add('dark');
     this.startClock(); this.startTickIndicator();
     this.initPanel();
     icons();
-    
-    // BOTÓN PARA CAMBIAR TEMA
-    $('btnTheme').addEventListener('click', () => {
-      const isDark = document.documentElement.classList.contains('dark');
-      this.applyTheme(isDark ? 'light' : 'dark');
-    });
 
     if(sessionStorage.getItem('adminAuth') === 'true') {
       $('adminLogin').classList.add('hidden');
@@ -778,7 +759,7 @@ const UIController = {
       const st = ESTADOS[b.estado] || ESTADOS.fuera;
       const ocupIcon = b.estado === 'fuera' ? 'alert-triangle' : b.ocupacion === 'alta' ? 'users' : b.ocupacion === 'media' ? 'user' : 'user-check';
       const ocupColor = b.estado === 'fuera' ? 'text-red-500' : b.ocupacion === 'alta' ? 'text-red-500' : b.ocupacion === 'media' ? 'text-yellow-500' : 'text-green-500';
-      const dirBadge = b.direccion === 'ida' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800';
+      const dirBadge = b.direccion === 'ida' ? 'bg-blue-900/50 text-blue-300' : 'bg-purple-900/50 text-purple-300';
       const dirText = b.direccion === 'ida' ? 'IDA' : 'REGRESO';
       
       ul.append(h('li', { class: 'rounded-xl p-3 bg-[var(--card)] border border-[var(--border)] shadow-sm' },
@@ -804,18 +785,6 @@ const UIController = {
       ));
     });
     icons();
-  },
-  applyTheme(t) {
-    document.documentElement.classList.toggle('dark', t === 'dark');
-    if(MapController.map) MapController.setTheme(t);
-    StorageManager.set('tema', t);
-    
-    // Cambiar el ícono del botón
-    const iconEl = $('btnTheme').querySelector('i');
-    if(iconEl) {
-      iconEl.setAttribute('data-lucide', t === 'dark' ? 'sun' : 'moon');
-      icons(); // Refrescar el ícono
-    }
   },
   startClock() {
     const tick = () => {
