@@ -277,14 +277,11 @@ h1,h2,h3,.brand{font-family:Poppins,Inter,sans-serif}
 'use strict';
 
 const CAMPUS = { nombre: 'Universidad del Sinú', coords: [8.7892, -75.8641] };
-// RUTA DE IDA Y VUELTA (SIN BUCLE FÍSICO)
 const DATA = {
   rutas: [{
     id: 'unisinu-metro', nombre: 'Ruta Unisinú - Rotonda', color: '#D8000C', activa: true,
     recorrido: [
-      [8.78920, -75.86410], // 1. Entrada Unisinú
-      [8.78750, -75.86550], // 2. Bloques
-      [8.78600, -75.86720]  // 3. Rotonda (Punto final)
+      [8.78920, -75.86410], [8.78750, -75.86550], [8.78600, -75.86720]
     ],
     paradas: ['P1', 'P2', 'P3']
   }],
@@ -354,12 +351,23 @@ const DataManager = {
   data: null,
   load() {
     const stored = StorageManager.get('data');
-    this.data = stored || JSON.parse(JSON.stringify(DATA));
-    if(!this.data.reportes) this.data.reportes = [];
+    let data = stored;
+    // Reparación automática: Si los datos están vacíos o corruptos, usar los de fábrica
+    if (!data || !data.rutas || !data.paradas || !data.buses) {
+      data = JSON.parse(JSON.stringify(DATA));
+    }
+    if(!data.reportes) data.reportes = [];
+    this.data = data;
     return true;
   },
   save() { StorageManager.set('data', this.data); RouteManager.cache = {}; },
-  reset() { if(confirm('¿Borrar todos los cambios y restaurar los datos de fábrica?')) { StorageManager.clearAll(); location.reload(); } }
+  reset() { 
+    if(confirm('¿Borrar todos los cambios y restaurar los datos de fábrica?')) { 
+      StorageManager.clearAll(); 
+      sessionStorage.removeItem('adminAuth'); // Limpiar sesión de admin para evitar bugs
+      location.href = location.href; // Recarga limpia
+    } 
+  }
 };
 
 const RouteManager = {
@@ -368,6 +376,7 @@ const RouteManager = {
   cumul(rec) { const c = [0]; for (let i = 1; i < rec.length; i++) c.push(c[i - 1] + this.km(rec[i - 1], rec[i])); return c; },
   async ajustarACalles() {
     const cache = StorageManager.get('calles', {}) || {};
+    if (!DataManager.data || !DataManager.data.rutas) return; // Seguro contra nulos
     for (const r of DataManager.data.rutas) {
       const ps = r.paradas.map(id => DataManager.data.paradas.find(p => p.id === id)).filter(Boolean);
       if(ps.length < 2) continue;
@@ -424,16 +433,15 @@ const ETACalculator = {
     if (bus.estado === 'pendiente') return out('pendiente');
     const T = r.total;
     
-    // LÓGICA DE IDA Y VUELTA PARA EL ETA
     const pp = bus.progresoRuta, ss = s.p;
     let d = 0;
     
     if (bus.direccion === 'ida') {
       if (ss >= pp) d = (ss - pp) * T;
-      else d = ((1 - pp) + (1 - ss)) * T; // Tiene que llegar al final y devolverse
+      else d = ((1 - pp) + (1 - ss)) * T;
     } else {
       if (ss <= pp) d = (pp - ss) * T;
-      else d = (pp + ss) * T; // Tiene que llegar al inicio y volver a subir
+      else d = (pp + ss) * T;
     }
 
     if (bus.estado === 'parada' && d <= 0.025) return out('en-parada', 0);
@@ -471,24 +479,22 @@ const BusSimulator = {
       else {
         const dp = (b.velocidadKmh * this.factor / 3600) / r.total;
         
-        // LÓGICA DE MOVIMIENTO IDA Y VUELTA
         if (b.direccion === 'ida') {
           b.progresoRuta += dp;
           if (b.progresoRuta >= 1) {
             b.progresoRuta = 1;
-            b.direccion = 'regreso'; // Llega a la rotonda y se devuelve
-            b.dwell = 5; // Pausa de 5 seg para recoger estudiantes
+            b.direccion = 'regreso'; 
+            b.dwell = 5; 
           }
         } else {
           b.progresoRuta -= dp;
           if (b.progresoRuta <= 0) {
             b.progresoRuta = 0;
-            b.direccion = 'ida'; // Llega a la U y vuelve a salir
-            b.dwell = 5; // Pausa de 5 seg para dejar estudiantes
+            b.direccion = 'ida'; 
+            b.dwell = 5; 
           }
         }
 
-        // SIMULAR PASAJEROS (Se llena en la U y se vacía en la Rotonda)
         if (b.direccion === 'ida' && b.progresoRuta < 0.15) b.ocupacion = 'alta';
         else if (b.direccion === 'regreso' && b.progresoRuta > 0.85) b.ocupacion = 'alta';
         else if (b.direccion === 'regreso' && b.progresoRuta < 0.15) b.ocupacion = 'baja';
@@ -815,7 +821,7 @@ const AdminController = {
     $('fileImport').addEventListener('change', (e) => {
       const file = e.target.files[0]; if(!file) return;
       const reader = new FileReader();
-      reader.onload = (ev) => { try { const d = JSON.parse(ev.target.result); if(d.rutas && d.paradas) { DataManager.data = d; DataManager.save(); location.reload(); } else showToast('Archivo inválido', true); } catch { showToast('Error al leer JSON', true); } };
+      reader.onload = (ev) => { try { const d = JSON.parse(ev.target.result); if(d.rutas && d.paradas) { DataManager.data = d; DataManager.save(); location.href = location.href; } else showToast('Archivo inválido', true); } catch { showToast('Error al leer JSON', true); } };
       reader.readAsText(file);
     });
   },
@@ -906,18 +912,26 @@ const NotificationManager = {
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
-  DataManager.load();
-  await RouteManager.ajustarACalles();
-  
-  NotificationManager.init();
-  AdminController.init();
-  BusSimulator.init();
-  UIController.init();
-  UIController.refreshUI();
-  
-  $('btnCenter').addEventListener('click', () => { if (MapController.map) MapController.map.fitBounds(L.latLngBounds(DataManager.data.rutas[0].recorrido)); });
-  $('btnLocate').addEventListener('click', () => { if(MapController.map) MapController.locateUser(); else showToast('Abre el mapa primero'); });
-  $('btnInstall').addEventListener('click', async () => { if(deferredPrompt) { deferredPrompt.prompt(); const {outcome} = await deferredPrompt.userChoice; deferredPrompt = null; $('btnInstall').classList.add('hidden'); } });
+  try {
+    DataManager.load();
+    await RouteManager.ajustarACalles();
+    
+    NotificationManager.init();
+    AdminController.init();
+    BusSimulator.init();
+    UIController.init();
+    UIController.refreshUI();
+    
+    $('btnCenter').addEventListener('click', () => { if (MapController.map) MapController.map.fitBounds(L.latLngBounds(DataManager.data.rutas[0].recorrido)); });
+    $('btnLocate').addEventListener('click', () => { if(MapController.map) MapController.locateUser(); else showToast('Abre el mapa primero'); });
+    $('btnInstall').addEventListener('click', async () => { if(deferredPrompt) { deferredPrompt.prompt(); const {outcome} = await deferredPrompt.userChoice; deferredPrompt = null; $('btnInstall').classList.add('hidden'); } });
+  } catch (error) {
+    console.error("Error crítico al iniciar la app:", error);
+    // Si falla algo gordo, forzamos los datos de fábrica y recargamos la UI
+    DataManager.data = JSON.parse(JSON.stringify(DATA));
+    UIController.init();
+    UIController.refreshUI();
+  }
 });
 </script>
 </body>
