@@ -87,6 +87,10 @@ h1,h2,h3,.brand{font-family:Poppins,Inter,sans-serif}
       <p class="text-xs opacity-80 hidden sm:block">Universidad del Sinú — Montería</p>
     </div>
     <div class="ml-auto flex items-center gap-2 sm:gap-3">
+      <!-- BOTÓN DE TEMA (SOL/LUNA) -->
+      <button id="btnTheme" class="btn bg-transparent border-none text-white hover:bg-white/10" style="padding: 0 8px; min-height: 32px;" title="Cambiar tema">
+        <i data-lucide="moon" class="w-5 h-5"></i>
+      </button>
       <button id="btnInstall" class="btn hidden bg-[var(--primary)] text-white border-none text-xs" type="button"><i data-lucide="download"></i> Instalar</button>
       <div class="flex items-center gap-2 text-sm mr-2" role="status">
         <span id="svcDot" class="dot" aria-hidden="true"></span>
@@ -277,17 +281,27 @@ h1,h2,h3,.brand{font-family:Poppins,Inter,sans-serif}
 'use strict';
 
 const CAMPUS = { nombre: 'Universidad del Sinú', coords: [8.7892, -75.8641] };
+// RUTA CORREGIDA CON MÁS PUNTOS PARA SEGUIR LA VÍA
 const DATA = {
   rutas: [{
     id: 'unisinu-metro', nombre: 'Ruta Unisinú - Rotonda', color: '#D8000C', activa: true,
     recorrido: [
-      [8.78920, -75.86410], [8.78750, -75.86550], [8.78600, -75.86720]
+      [8.78920, -75.86410], // Entrada U
+      [8.78880, -75.86430],
+      [8.78840, -75.86460],
+      [8.78800, -75.86490],
+      [8.78760, -75.86520],
+      [8.78720, -75.86560],
+      [8.78680, -75.86600],
+      [8.78640, -75.86650],
+      [8.78600, -75.86720], // Rotonda
+      [8.78560, -75.86780]  // Más allá de la rotonda
     ],
     paradas: ['P1', 'P2', 'P3']
   }],
   paradas: [
     { id: 'P1', nombre: 'Entrada Principal Unisinú', lat: 8.78920, lng: -75.86410, imagen: '' },
-    { id: 'P2', nombre: 'Bloques Académicos', lat: 8.78750, lng: -75.86550, imagen: '' },
+    { id: 'P2', nombre: 'Bloques Académicos', lat: 8.78760, lng: -75.86520, imagen: '' },
     { id: 'P3', nombre: 'Rotonda Unisinú', lat: 8.78600, lng: -75.86720, imagen: '' }
   ],
   buses: [
@@ -344,7 +358,13 @@ const StorageManager = {
   P: 'unisinu:',
   get(k, fb = null) { try { const v = localStorage.getItem(this.P + k); return v === null ? fb : JSON.parse(v); } catch (e) { return fb; } },
   set(k, v) { try { localStorage.setItem(this.P + k, JSON.stringify(v)); return true; } catch (e) { return false; } },
-  clearAll() { try { Object.keys(localStorage).filter(k => k.startsWith(this.P)).forEach(k => localStorage.removeItem(k)); } catch (e) {} }
+  clearData() { 
+    try { 
+      // Solo borra los datos de la app, NO el tema ni preferencias
+      localStorage.removeItem(this.P + 'data'); 
+      localStorage.removeItem(this.P + 'calles'); 
+    } catch (e) {} 
+  }
 };
 
 const DataManager = {
@@ -352,7 +372,6 @@ const DataManager = {
   load() {
     const stored = StorageManager.get('data');
     let data = stored;
-    // Reparación automática: Si los datos están vacíos o corruptos, usar los de fábrica
     if (!data || !data.rutas || !data.paradas || !data.buses) {
       data = JSON.parse(JSON.stringify(DATA));
     }
@@ -363,9 +382,9 @@ const DataManager = {
   save() { StorageManager.set('data', this.data); RouteManager.cache = {}; },
   reset() { 
     if(confirm('¿Borrar todos los cambios y restaurar los datos de fábrica?')) { 
-      StorageManager.clearAll(); 
-      sessionStorage.removeItem('adminAuth'); // Limpiar sesión de admin para evitar bugs
-      location.href = location.href; // Recarga limpia
+      StorageManager.clearData(); 
+      sessionStorage.removeItem('adminAuth'); 
+      location.href = location.href; 
     } 
   }
 };
@@ -376,7 +395,7 @@ const RouteManager = {
   cumul(rec) { const c = [0]; for (let i = 1; i < rec.length; i++) c.push(c[i - 1] + this.km(rec[i - 1], rec[i])); return c; },
   async ajustarACalles() {
     const cache = StorageManager.get('calles', {}) || {};
-    if (!DataManager.data || !DataManager.data.rutas) return; // Seguro contra nulos
+    if (!DataManager.data || !DataManager.data.rutas) return;
     for (const r of DataManager.data.rutas) {
       const ps = r.paradas.map(id => DataManager.data.paradas.find(p => p.id === id)).filter(Boolean);
       if(ps.length < 2) continue;
@@ -396,7 +415,7 @@ const RouteManager = {
           cache[r.id] = c;
         }
         r.recorrido = c.recorrido; ps.forEach(p => { [p.lat, p.lng] = c.paradas[p.id]; });
-      } catch (e) { console.warn('OSRM falló', e); }
+      } catch (e) { console.warn('OSRM falló, usando ruta local', e); }
     }
     StorageManager.set('calles', cache); this.cache = {};
   },
@@ -663,6 +682,12 @@ const UIController = {
     this.initPanel();
     icons();
     
+    // BOTÓN PARA CAMBIAR TEMA
+    $('btnTheme').addEventListener('click', () => {
+      const isDark = document.documentElement.classList.contains('dark');
+      this.applyTheme(isDark ? 'light' : 'dark');
+    });
+
     if(sessionStorage.getItem('adminAuth') === 'true') {
       $('adminLogin').classList.add('hidden');
       $('adminPanel').classList.remove('hidden');
@@ -784,6 +809,13 @@ const UIController = {
     document.documentElement.classList.toggle('dark', t === 'dark');
     if(MapController.map) MapController.setTheme(t);
     StorageManager.set('tema', t);
+    
+    // Cambiar el ícono del botón
+    const iconEl = $('btnTheme').querySelector('i');
+    if(iconEl) {
+      iconEl.setAttribute('data-lucide', t === 'dark' ? 'sun' : 'moon');
+      icons(); // Refrescar el ícono
+    }
   },
   startClock() {
     const tick = () => {
@@ -927,7 +959,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     $('btnInstall').addEventListener('click', async () => { if(deferredPrompt) { deferredPrompt.prompt(); const {outcome} = await deferredPrompt.userChoice; deferredPrompt = null; $('btnInstall').classList.add('hidden'); } });
   } catch (error) {
     console.error("Error crítico al iniciar la app:", error);
-    // Si falla algo gordo, forzamos los datos de fábrica y recargamos la UI
     DataManager.data = JSON.parse(JSON.stringify(DATA));
     UIController.init();
     UIController.refreshUI();
